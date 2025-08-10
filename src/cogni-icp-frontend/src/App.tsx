@@ -10,6 +10,7 @@ import { Layout } from './components/shared';
 import { LearningPathDetail } from './components/learning';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Features from './pages/Features';
 import Pricing from './pages/Pricing';
 import About from './pages/About';
@@ -34,6 +35,7 @@ const App: React.FC = () => {
                   {/* Public marketing pages */}
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 <Route path="/features" element={<Features />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/testimonials" element={<Testimonials />} />

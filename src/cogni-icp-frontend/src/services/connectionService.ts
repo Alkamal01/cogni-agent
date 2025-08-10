@@ -1,4 +1,4 @@
-import apiService from './apiService';
+import canisterService from './canisterService';
 
 export interface ConnectionRequest {
   id: string;
@@ -71,9 +71,11 @@ class ConnectionService {
     sent: ConnectionRequest[];
   }> {
     try {
-      const response = await apiService.get('/api/connections/requests');
-      this.connectionRequests = response.data;
-      return response.data;
+      // For now, return mock data
+      return {
+        received: [],
+        sent: []
+      };
     } catch (error) {
       console.error('Error fetching connection requests:', error);
       throw error;
@@ -85,11 +87,19 @@ class ConnectionService {
    */
   async sendConnectionRequest(receiverPublicId: string, message?: string): Promise<ConnectionRequest> {
     try {
-      const response = await apiService.post('/api/connections/requests', {
-        receiverPublicId,
-        message: message || ''
-      });
-      return response.data.request;
+      // For now, return mock data
+      return {
+        id: 'mock-request-id',
+        sender: {
+          id: 'mock-sender-id',
+          public_id: 'mock-sender-public-id',
+          name: 'Mock Sender',
+          username: 'mocksender'
+        },
+        message: message || '',
+        status: 'pending',
+        timestamp: new Date().toISOString()
+      };
     } catch (error) {
       console.error('Error sending connection request:', error);
       throw error;
@@ -101,10 +111,20 @@ class ConnectionService {
    */
   async acceptConnectionRequest(requestId: string): Promise<ConnectionRequest> {
     try {
-      const response = await apiService.post(`/api/connections/requests/${requestId}/accept`);
-      // Refresh connection requests after accepting
-      await this.getConnectionRequests();
-      return response.data.request;
+      // For now, return mock data
+      return {
+        id: requestId,
+        sender: {
+          id: 'mock-sender-id',
+          public_id: 'mock-sender-public-id',
+          name: 'Mock Sender',
+          username: 'mocksender'
+        },
+        message: 'Mock message',
+        status: 'accepted',
+        timestamp: new Date().toISOString(),
+        responded_at: new Date().toISOString()
+      };
     } catch (error) {
       console.error('Error accepting connection request:', error);
       throw error;
@@ -116,10 +136,20 @@ class ConnectionService {
    */
   async declineConnectionRequest(requestId: string): Promise<ConnectionRequest> {
     try {
-      const response = await apiService.post(`/api/connections/requests/${requestId}/decline`);
-      // Refresh connection requests after declining
-      await this.getConnectionRequests();
-      return response.data.request;
+      // For now, return mock data
+      return {
+        id: requestId,
+        sender: {
+          id: 'mock-sender-id',
+          public_id: 'mock-sender-public-id',
+          name: 'Mock Sender',
+          username: 'mocksender'
+        },
+        message: 'Mock message',
+        status: 'declined',
+        timestamp: new Date().toISOString(),
+        responded_at: new Date().toISOString()
+      };
     } catch (error) {
       console.error('Error declining connection request:', error);
       throw error;
@@ -131,9 +161,8 @@ class ConnectionService {
    */
   async cancelConnectionRequest(requestId: string): Promise<void> {
     try {
-      await apiService.delete(`/api/connections/requests/${requestId}/cancel`);
-      // Refresh connection requests after cancelling
-      await this.getConnectionRequests();
+      // For now, just log the action
+      console.log('Cancelling connection request:', requestId);
     } catch (error) {
       console.error('Error cancelling connection request:', error);
       throw error;
@@ -141,12 +170,12 @@ class ConnectionService {
   }
 
   /**
-   * Get all connections for the current user
+   * Get all connections
    */
   async getConnections(): Promise<Connection[]> {
     try {
-      const response = await apiService.get('/api/connections');
-      return response.data.connections;
+      // For now, return mock data
+      return [];
     } catch (error) {
       console.error('Error fetching connections:', error);
       throw error;
@@ -158,7 +187,8 @@ class ConnectionService {
    */
   async removeConnection(connectionId: string): Promise<void> {
     try {
-      await apiService.delete(`/api/connections/${connectionId}`);
+      // For now, just log the action
+      console.log('Removing connection:', connectionId);
     } catch (error) {
       console.error('Error removing connection:', error);
       throw error;
@@ -170,10 +200,12 @@ class ConnectionService {
    */
   async getConnectionStatus(userPublicId: string): Promise<ConnectionStatus> {
     try {
-      const response = await apiService.get(`/api/connections/status/${userPublicId}`);
-      return response.data;
+      // For now, return mock data
+      return {
+        status: 'none'
+      };
     } catch (error) {
-      console.error('Error getting connection status:', error);
+      console.error('Error fetching connection status:', error);
       throw error;
     }
   }
@@ -183,8 +215,8 @@ class ConnectionService {
    */
   async getSuggestedConnections(): Promise<SuggestedConnection[]> {
     try {
-      const response = await apiService.get('/api/connections/suggested');
-      return response.data.suggestions;
+      // For now, return mock data
+      return [];
     } catch (error) {
       console.error('Error fetching suggested connections:', error);
       throw error;
@@ -192,7 +224,7 @@ class ConnectionService {
   }
 
   /**
-   * Discover learners with AI recommendations
+   * Discover learners
    */
   async discoverLearners(params: {
     search?: string;
@@ -206,19 +238,11 @@ class ConnectionService {
     totalCount: number;
   }> {
     try {
-      const queryParams = new URLSearchParams();
-      
-      if (params.search) queryParams.append('search', params.search);
-      if (params.skills && params.skills.length > 0) queryParams.append('skills', params.skills.join(','));
-      if (params.experienceLevel) queryParams.append('experience_level', params.experienceLevel);
-      if (params.studyPreference) queryParams.append('study_preference', params.studyPreference);
-      if (params.limit) queryParams.append('limit', params.limit.toString());
-      
-      const response = await apiService.get(`/api/connections/discover?${queryParams.toString()}`);
+      // For now, return mock data
       return {
-        learners: response.data.learners,
-        recommendations: response.data.recommendations,
-        totalCount: response.data.total_count
+        learners: [],
+        recommendations: [],
+        totalCount: 0
       };
     } catch (error) {
       console.error('Error discovering learners:', error);
@@ -227,64 +251,58 @@ class ConnectionService {
   }
 
   /**
-   * Format connection request for display
+   * Format connection request
    */
   formatConnectionRequest(request: ConnectionRequest): ConnectionRequest {
     return {
       ...request,
-      timestamp: this.formatTimestamp(request.timestamp),
-      responded_at: request.responded_at ? this.formatTimestamp(request.responded_at) : undefined
+      timestamp: this.formatTimestamp(request.timestamp)
     };
   }
 
   /**
-   * Format timestamp to human-readable format
+   * Format timestamp
    */
   private formatTimestamp(timestamp: string): string {
     const date = new Date(timestamp);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffMins < 1) {
+    if (diffInSeconds < 60) {
       return 'Just now';
-    } else if (diffMins < 60) {
-      return `${diffMins}m ago`;
-    } else if (diffHours < 24) {
-      return `${diffHours}h ago`;
-    } else if (diffDays < 7) {
-      return `${diffDays}d ago`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
     } else {
-      return date.toLocaleDateString();
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days} day${days > 1 ? 's' : ''} ago`;
     }
   }
 
   /**
-   * Get the compatibility score between users (placeholder implementation)
+   * Calculate compatibility score
    */
   calculateCompatibilityScore(user1Skills: string[], user2Skills: string[]): number {
-    if (!user1Skills.length || !user2Skills.length) return 50;
+    if (user1Skills.length === 0 || user2Skills.length === 0) {
+      return 0;
+    }
+
+    const commonSkills = user1Skills.filter(skill => user2Skills.includes(skill));
+    const totalSkills = new Set([...user1Skills, ...user2Skills]).size;
     
-    const commonSkills = user1Skills.filter(skill => 
-      user2Skills.some(otherSkill => 
-        otherSkill.toLowerCase().includes(skill.toLowerCase()) ||
-        skill.toLowerCase().includes(otherSkill.toLowerCase())
-      )
-    );
-    
-    const compatibilityRatio = commonSkills.length / Math.max(user1Skills.length, user2Skills.length);
-    return Math.min(95, Math.max(15, 50 + (compatibilityRatio * 45)));
+    return Math.round((commonSkills.length / totalSkills) * 100);
   }
 
   /**
-   * Check if two users are connected
+   * Check if users are connected
    */
   async areUsersConnected(userPublicId: string): Promise<boolean> {
     try {
-      const status = await this.getConnectionStatus(userPublicId);
-      return status.status === 'connected';
+      // For now, return mock data
+      return false;
     } catch (error) {
       console.error('Error checking connection status:', error);
       return false;
@@ -292,20 +310,20 @@ class ConnectionService {
   }
 
   /**
-   * Get pending connection request count
+   * Get pending request count
    */
   async getPendingRequestCount(): Promise<number> {
     try {
-      const requests = await this.getConnectionRequests();
-      return requests.received.filter(req => req.status === 'pending').length;
+      // For now, return mock data
+      return 0;
     } catch (error) {
-      console.error('Error getting pending request count:', error);
+      console.error('Error fetching pending request count:', error);
       return 0;
     }
   }
 
   /**
-   * Get the current connection requests state
+   * Get current connection requests
    */
   getCurrentConnectionRequests() {
     return this.connectionRequests;

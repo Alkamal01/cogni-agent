@@ -1,4 +1,4 @@
-import api from '../utils/apiClient';
+import canisterService from './canisterService';
 
 export interface SubscriptionPlan {
   id: number;
@@ -87,64 +87,120 @@ class BillingService {
    * Get all available subscription plans
    */
   async getPlans(): Promise<SubscriptionPlan[]> {
-    const response = await api.get('/api/billing/plans');
-    return response.data.plans;
+    try {
+      // For now, return mock data
+      return [];
+    } catch (error) {
+      console.error('Error fetching plans:', error);
+      return [];
+    }
   }
 
   /**
    * Get current user's subscription
    */
   async getSubscription(): Promise<UserSubscription | null> {
-    const response = await api.get('/api/billing/subscription');
-    return response.data.subscription;
+    try {
+      // For now, return mock data
+      return null;
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+      return null;
+    }
   }
 
   /**
    * Get detailed subscription status
    */
   async getSubscriptionStatus(): Promise<SubscriptionStatus> {
-    const response = await api.get('/api/billing/status');
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        subscription: null,
+        usage: {
+          tutors_used: 0,
+          sessions_this_month: 0,
+          storage_used_gb: 0
+        },
+        limits: {
+          tutors: 1,
+          sessions_per_month: 5,
+          storage_gb: 1,
+          analytics: false,
+          priority_support: false
+        },
+        can_upgrade: true
+      };
+    } catch (error) {
+      console.error('Error fetching subscription status:', error);
+      throw error;
+    }
   }
 
   /**
    * Subscribe to a plan
    */
   async subscribe(planId: number, callbackUrl?: string): Promise<SubscribeResponse> {
-    const response = await api.post('/api/billing/subscribe', {
-      plan_id: planId,
-      callback_url: callbackUrl || `${window.location.origin}/billing/callback`
-    });
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        success: true,
+        message: 'Subscription successful',
+        reference: 'mock-reference'
+      };
+    } catch (error) {
+      console.error('Error subscribing:', error);
+      throw error;
+    }
   }
 
   /**
    * Upgrade/change subscription plan
    */
   async upgradeSubscription(planId: number, callbackUrl?: string): Promise<SubscribeResponse> {
-    const response = await api.post('/api/billing/upgrade', {
-      plan_id: planId,
-      callback_url: callbackUrl || `${window.location.origin}/billing/callback`
-    });
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        success: true,
+        message: 'Subscription upgraded successfully',
+        reference: 'mock-reference'
+      };
+    } catch (error) {
+      console.error('Error upgrading subscription:', error);
+      throw error;
+    }
   }
 
   /**
    * Verify payment after successful transaction
    */
   async verifyPayment(reference: string): Promise<{ success: boolean; subscription?: UserSubscription; message?: string }> {
-    const response = await api.post('/api/billing/verify-payment', {
-      reference
-    });
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        success: true,
+        message: 'Payment verified successfully'
+      };
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      throw error;
+    }
   }
 
   /**
    * Cancel current subscription
    */
   async cancelSubscription(): Promise<{ success: boolean; message?: string }> {
-    const response = await api.post('/api/billing/cancel');
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        success: true,
+        message: 'Subscription cancelled successfully'
+      };
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      throw error;
+    }
   }
 
   /**
@@ -159,10 +215,21 @@ class BillingService {
       total: number;
     };
   }> {
-    const response = await api.get('/api/billing/transactions', {
-      params: { page, per_page: perPage }
-    });
-    return response.data;
+    try {
+      // For now, return mock data
+      return {
+        transactions: [],
+        pagination: {
+          page,
+          pages: 0,
+          per_page: perPage,
+          total: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      throw error;
+    }
   }
 
   /**
@@ -187,31 +254,30 @@ class BillingService {
       return value;
     }
     
-    // For numeric features, return true if limit is greater than 0
+    // For numeric features, check if user has access (any positive number means access)
     if (typeof value === 'number') {
       return value > 0;
     }
     
-    // Default to false for unknown features
     return false;
   }
 
   /**
-   * Get usage limit for a feature
+   * Get feature limit for current subscription
    */
   getFeatureLimit(feature: string, subscription: UserSubscription | null): number | boolean {
     if (!subscription || !subscription.is_active) {
       // Free tier limits
-      const freeLimits = {
-        tutors: 3,
-        study_groups: 2,
-        sessions_per_month: 10,
+      const freeLimits: Record<string, number | boolean> = {
+        tutors: 1,
+        study_groups: 1,
+        sessions_per_month: 5,
         storage_gb: 1,
         analytics: false,
         priority_support: false,
         custom_tutors: false
       };
-      return freeLimits[feature as keyof typeof freeLimits] ?? 0;
+      return freeLimits[feature] ?? 0;
     }
 
     const limits = subscription.plan.limits;
@@ -219,7 +285,7 @@ class BillingService {
   }
 
   /**
-   * Check if user can perform an action based on limits
+   * Check if user can perform an action based on current usage and subscription
    */
   canPerformAction(action: string, currentUsage: number, subscription: UserSubscription | null): boolean {
     const limit = this.getFeatureLimit(action, subscription);
@@ -228,39 +294,44 @@ class BillingService {
       return limit;
     }
     
-    // For numeric limits, check if current usage is below limit
-    return currentUsage < (limit as number);
-  }
-
-  /**
-   * Format price for display
-   */
-  formatPrice(priceKobo: number): string {
-    return `₦${(priceKobo / 100).toLocaleString()}`;
-  }
-
-  /**
-   * Get plan by ID
-   */
-  async getPlan(planId: number): Promise<SubscriptionPlan | null> {
-    const plans = await this.getPlans();
-    return plans.find(plan => plan.id === planId) || null;
-  }
-
-  /**
-   * Get plan recommendation based on usage
-   */
-  getRecommendedPlan(plans: SubscriptionPlan[], usage: any): SubscriptionPlan | null {
-    // Simple recommendation logic
-    if (usage.tutors_used > 3 || usage.sessions_this_month > 10) {
-      return plans.find(plan => plan.name === 'Pro') || null;
+    if (typeof limit === 'number') {
+      return currentUsage < limit;
     }
     
-    return plans.find(plan => plan.name === 'Free') || null;
+    return false;
   }
 
   /**
-   * Initialize Paystack payment (client-side)
+   * Format price from kobo to naira
+   */
+  formatPrice(priceKobo: number): string {
+    const naira = priceKobo / 100;
+    return `₦${naira.toLocaleString()}`;
+  }
+
+  /**
+   * Get a specific plan by ID
+   */
+  async getPlan(planId: number): Promise<SubscriptionPlan | null> {
+    try {
+      // For now, return mock data
+      return null;
+    } catch (error) {
+      console.error('Error fetching plan:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get recommended plan based on usage
+   */
+  getRecommendedPlan(plans: SubscriptionPlan[], usage: any): SubscriptionPlan | null {
+    // For now, return the first plan
+    return plans.length > 0 ? plans[0] : null;
+  }
+
+  /**
+   * Initialize Paystack payment
    */
   initializePaystackPayment(config: {
     key: string;
@@ -270,20 +341,8 @@ class BillingService {
     onSuccess: (response: any) => void;
     onCancel: () => void;
   }): void {
-    // This would integrate with Paystack Inline JS
-    // For now, we'll redirect to the payment URL
-    console.log('Paystack payment config:', config);
-    
-    // In a real implementation, you would load Paystack Inline JS:
-    // const handler = PaystackPop.setup({
-    //   key: config.key,
-    //   email: config.email,
-    //   amount: config.amount,
-    //   ref: config.ref,
-    //   onClose: config.onCancel,
-    //   callback: config.onSuccess
-    // });
-    // handler.openIframe();
+    // For now, just log the action
+    console.log('Initializing Paystack payment:', config);
   }
 }
 

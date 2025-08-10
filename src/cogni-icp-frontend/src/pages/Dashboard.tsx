@@ -92,7 +92,7 @@ const Dashboard: React.FC = () => {
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, backendActor } = useAuth();
 
   // Cache and debouncing refs
   const hasFetchedData = useRef(false);
@@ -120,7 +120,7 @@ const Dashboard: React.FC = () => {
       const [stats, recentActivities, tutorsData] = await Promise.all([
         dashboardService.getDashboardStats(),
         dashboardService.getRecentActivities(),
-        tutorService.getAllTutors()
+        tutorService.getAllTutors(backendActor)
       ]);
 
       setDashboardStats(stats);
@@ -185,7 +185,7 @@ const Dashboard: React.FC = () => {
   const handleCreateTutor = async (data: TutorFormData) => {
     try {
       setIsLoading(true);
-      const createdTutor = await tutorService.createTutor(data);
+      const createdTutor = await tutorService.createTutor(data, backendActor);
       setTutors(prev => [...prev, createdTutor]);
       setIsModalOpen(false);
       showToast('success', `Tutor "${createdTutor.name}" created successfully`);

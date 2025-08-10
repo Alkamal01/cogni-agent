@@ -31,6 +31,7 @@ pub struct User {
     pub subscription: String, // "free", "pro", "enterprise"
     pub last_active: u64,
     pub settings: UserSettings,
+    pub password_hash: Option<String>, // For traditional email/password auth
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

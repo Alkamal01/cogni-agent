@@ -13,6 +13,19 @@ use state::{STUDY_GROUPS, GROUP_MEMBERSHIPS};
 use models::gamification::{Task, UserTaskCompletion};
 use state::{TASKS, USER_TASK_COMPLETIONS};
 
+// Simple password hashing (in production, use proper crypto)
+fn hash_password(password: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    password.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
+fn verify_password(password: &str, hash: &str) -> bool {
+    hash_password(password) == hash
+}
+
 #[ic_cdk::query]
 fn get_self() -> Option<User> {
     let principal = ic_cdk::caller();
@@ -65,6 +78,7 @@ fn create_user(username: String, email: String) -> User {
         subscription: "free".to_string(),
         last_active: ic_cdk::api::time(),
         settings: default_settings,
+        password_hash: None,
     };
 
     USERS.with(|users| {
@@ -75,30 +89,172 @@ fn create_user(username: String, email: String) -> User {
 }
 
 #[ic_cdk::update]
+fn register_user(username: String, email: String, password: String) -> Result<User, String> {
+    // Check if email already exists
+    let email_exists = USERS.with(|users| {
+        users.borrow().values().any(|user| user.email == email)
+    });
+    
+    if email_exists {
+        return Err("Email already registered".to_string());
+    }
+
+    // Check if username already exists
+    let username_exists = USERS.with(|users| {
+        users.borrow().values().any(|user| user.username == username)
+    });
+    
+    if username_exists {
+        return Err("Username already taken".to_string());
+    }
+
+    let password_hash = hash_password(&password);
+    
+    // Generate a unique ID for traditional users
+    let user_id = next_id("user");
+    let principal = Principal::from_text(&format!("traditional-{}", user_id)).unwrap_or(Principal::anonymous());
+
+    let default_settings = UserSettings {
+        learning_style: "visual".to_string(),
+        preferred_language: "en".to_string(),
+        difficulty_level: "intermediate".to_string(),
+        daily_goal_hours: 1,
+        two_factor_enabled: false,
+        font_size: "medium".to_string(),
+        contrast: "normal".to_string(),
+        ai_interaction_style: "casual".to_string(),
+        profile_visibility: "public".to_string(),
+        activity_sharing: "connections".to_string(),
+    };
+
+    let new_user = User {
+        id: principal,
+        public_id: user_id.to_string(),
+        email,
+        username,
+        first_name: None,
+        last_name: None,
+        is_active: true,
+        is_verified: false,
+        created_at: ic_cdk::api::time(),
+        updated_at: ic_cdk::api::time(),
+        last_login: None,
+        oauth_provider: None,
+        oauth_id: None,
+        avatar_url: None,
+        bio: None,
+        blockchain_wallet_address: None,
+        blockchain_wallet_type: None,
+        blockchain_wallet_connected_at: None,
+        wallet_address: None,
+        public_key: None,
+        role: "user".to_string(),
+        status: "active".to_string(),
+        location: None,
+        subscription: "free".to_string(),
+        last_active: ic_cdk::api::time(),
+        settings: default_settings,
+        password_hash: Some(password_hash),
+    };
+
+    USERS.with(|users| {
+        users.borrow_mut().insert(principal, new_user.clone());
+    });
+
+    Ok(new_user)
+}
+
+#[ic_cdk::update]
+fn login_user(email: String, password: String) -> Result<User, String> {
+    let user = USERS.with(|users| {
+        users.borrow().values().find(|user| user.email == email).map(|user| user.clone())
+    });
+
+    match user {
+        Some(user) => {
+            if let Some(password_hash) = &user.password_hash {
+                if verify_password(&password, password_hash) {
+                    // Update last login
+                    let mut updated_user = user.clone();
+                    updated_user.last_login = Some(ic_cdk::api::time());
+                    updated_user.last_active = ic_cdk::api::time();
+                    
+                    USERS.with(|users| {
+                        users.borrow_mut().insert(user.id, updated_user.clone());
+                    });
+                    
+                    Ok(updated_user)
+                } else {
+                    Err("Invalid password".to_string())
+                }
+            } else {
+                Err("Account not set up for password authentication".to_string())
+            }
+        }
+        None => Err("User not found".to_string())
+    }
+}
+
+#[ic_cdk::query]
+fn get_user_by_email(email: String) -> Option<User> {
+    USERS.with(|users| {
+        users.borrow().values().find(|user| user.email == email).map(|user| user.clone())
+    })
+}
+
+#[ic_cdk::update]
 fn create_tutor(
     name: String,
     description: String,
     teaching_style: String,
     personality: String,
     expertise: Vec<String>,
-) -> Tutor {
+    knowledge_base: Option<Vec<String>>,
+    voice_id: Option<String>,
+    voice_settings: Option<HashMap<String, String>>,
+    avatar_url: Option<String>,
+) -> Result<Tutor, String> {
     let caller = ic_cdk::caller();
+    
+    // Validate required fields
+    if name.trim().is_empty() {
+        return Err("Name is required".to_string());
+    }
+    if description.trim().is_empty() {
+        return Err("Description is required".to_string());
+    }
+    if teaching_style.trim().is_empty() {
+        return Err("Teaching style is required".to_string());
+    }
+    if personality.trim().is_empty() {
+        return Err("Personality is required".to_string());
+    }
+    
+    // Validate expertise and knowledge_base
+    let expertise = if expertise.is_empty() {
+        return Err("At least one expertise area is required".to_string());
+    } else {
+        expertise
+    };
+    
+    let knowledge_base = knowledge_base.unwrap_or_default();
+    
     let tutor_id = next_id("tutor");
 
     let new_tutor = Tutor {
         id: tutor_id,
         public_id: tutor_id.to_string(),
         user_id: caller,
-        name,
-        description,
-        teaching_style,
-        personality,
+        name: name.trim().to_string(),
+        description: description.trim().to_string(),
+        teaching_style: teaching_style.trim().to_string(),
+        personality: personality.trim().to_string(),
         expertise,
-        knowledge_base: vec![],
+        knowledge_base,
         is_pinned: false,
-        avatar_url: None,
-        voice_id: None,
-        voice_settings: HashMap::new(),
+        avatar_url,
+        voice_id,
+        voice_settings: voice_settings.unwrap_or_default(),
         created_at: ic_cdk::api::time(),
         updated_at: ic_cdk::api::time(),
     };
@@ -107,12 +263,151 @@ fn create_tutor(
         tutors.borrow_mut().insert(tutor_id, new_tutor.clone());
     });
 
-    new_tutor
+    Ok(new_tutor)
 }
 
 #[ic_cdk::query]
 fn get_tutor(id: u64) -> Option<Tutor> {
     TUTORS.with(|tutors| tutors.borrow().get(&id))
+}
+
+#[ic_cdk::query]
+fn get_tutor_by_public_id(public_id: String) -> Option<Tutor> {
+    let caller = ic_cdk::caller();
+    TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, tutor)| tutor.public_id == public_id && tutor.user_id == caller)
+            .map(|(_, tutor)| tutor.clone())
+    })
+}
+
+#[ic_cdk::update]
+fn update_tutor(
+    public_id: String,
+    name: Option<String>,
+    description: Option<String>,
+    teaching_style: Option<String>,
+    personality: Option<String>,
+    expertise: Option<Vec<String>>,
+    knowledge_base: Option<Vec<String>>,
+    voice_id: Option<String>,
+    voice_settings: Option<HashMap<String, String>>,
+    avatar_url: Option<String>,
+) -> Result<Tutor, String> {
+    let caller = ic_cdk::caller();
+    
+    let mut tutor = TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, t)| t.public_id == public_id && t.user_id == caller)
+            .map(|(id, t)| (id, t.clone()))
+    }).ok_or("Tutor not found or you don't have permission to update it")?;
+    
+    // Update fields if provided
+    if let Some(name) = name {
+        if name.trim().is_empty() {
+            return Err("Name cannot be empty".to_string());
+        }
+        tutor.1.name = name.trim().to_string();
+    }
+    
+    if let Some(description) = description {
+        if description.trim().is_empty() {
+            return Err("Description cannot be empty".to_string());
+        }
+        tutor.1.description = description.trim().to_string();
+    }
+    
+    if let Some(teaching_style) = teaching_style {
+        if teaching_style.trim().is_empty() {
+            return Err("Teaching style cannot be empty".to_string());
+        }
+        tutor.1.teaching_style = teaching_style.trim().to_string();
+    }
+    
+    if let Some(personality) = personality {
+        if personality.trim().is_empty() {
+            return Err("Personality cannot be empty".to_string());
+        }
+        tutor.1.personality = personality.trim().to_string();
+    }
+    
+    if let Some(expertise) = expertise {
+        if expertise.is_empty() {
+            return Err("At least one expertise area is required".to_string());
+        }
+        tutor.1.expertise = expertise;
+    }
+    
+    if let Some(knowledge_base) = knowledge_base {
+        tutor.1.knowledge_base = knowledge_base;
+    }
+    
+    if let Some(voice_id) = voice_id {
+        tutor.1.voice_id = Some(voice_id);
+    }
+    
+    if let Some(voice_settings) = voice_settings {
+        tutor.1.voice_settings = voice_settings;
+    }
+    
+    if let Some(avatar_url) = avatar_url {
+        tutor.1.avatar_url = Some(avatar_url);
+    }
+    
+    tutor.1.updated_at = ic_cdk::api::time();
+    
+    // Update the tutor in storage
+    TUTORS.with(|tutors| {
+        tutors.borrow_mut().insert(tutor.0, tutor.1.clone());
+    });
+    
+    Ok(tutor.1)
+}
+
+#[ic_cdk::update]
+fn delete_tutor(public_id: String) -> Result<String, String> {
+    let caller = ic_cdk::caller();
+    
+    let tutor_id = TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, t)| t.public_id == public_id && t.user_id == caller)
+            .map(|(id, _)| id)
+    }).ok_or("Tutor not found or you don't have permission to delete it")?;
+    
+    TUTORS.with(|tutors| {
+        tutors.borrow_mut().remove(&tutor_id);
+    });
+    
+    Ok("Tutor deleted successfully".to_string())
+}
+
+#[ic_cdk::update]
+fn toggle_tutor_pin(public_id: String) -> Result<Tutor, String> {
+    let caller = ic_cdk::caller();
+    
+    let mut tutor = TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, t)| t.public_id == public_id && t.user_id == caller)
+            .map(|(id, t)| (id, t.clone()))
+    }).ok_or("Tutor not found or you don't have permission to modify it")?;
+    
+    tutor.1.is_pinned = !tutor.1.is_pinned;
+    tutor.1.updated_at = ic_cdk::api::time();
+    
+    // Update the tutor in storage
+    TUTORS.with(|tutors| {
+        tutors.borrow_mut().insert(tutor.0, tutor.1.clone());
+    });
+    
+    Ok(tutor.1)
 }
 
 #[ic_cdk::query]
@@ -448,6 +743,386 @@ fn is_admin(principal: Principal) -> bool {
             false
         }
     })
+}
+
+// --- AI Topic Suggestions ---
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct TopicSuggestionsResponse {
+    suggestions: Vec<TopicSuggestion>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct TopicSuggestion {
+    topic: String,
+    description: String,
+    difficulty: String,
+    expertise_area: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct TopicValidation {
+    is_relevant: bool,
+    confidence: f64,
+    reasoning: String,
+    suggested_alternatives: Vec<String>,
+}
+
+async fn call_icp_ai(prompt: &str) -> Result<String, String> {
+    // For now, generate dynamic suggestions based on the prompt content
+    // The prompt contains the tutor's expertise information
+    
+    // Extract expertise from the prompt - look for the expertise areas in the prompt
+    let expertise = if prompt.contains("expertise: Physics") || prompt.contains("Expertise Areas: Physics") {
+        "Physics"
+    } else if prompt.contains("expertise: Mathematics") || prompt.contains("Expertise Areas: Mathematics") {
+        "Mathematics"
+    } else if prompt.contains("expertise: Computer Science") || prompt.contains("Expertise Areas: Computer Science") {
+        "Computer Science"
+    } else if prompt.contains("expertise: Chemistry") || prompt.contains("Expertise Areas: Chemistry") {
+        "Chemistry"
+    } else if prompt.contains("expertise: Biology") || prompt.contains("Expertise Areas: Biology") {
+        "Biology"
+    } else {
+        "General"
+    };
+    
+    // Generate dynamic suggestions based on expertise
+    let suggestions = match expertise {
+        "Mathematics" => r#"{
+            "suggestions": [
+                {
+                    "topic": "Introduction to Linear Algebra",
+                    "description": "Learn the fundamentals of vectors, matrices, and linear transformations",
+                    "difficulty": "beginner",
+                    "expertise_area": "Mathematics"
+                },
+                {
+                    "topic": "Differential Equations",
+                    "description": "Explore first and second order differential equations and their applications",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Mathematics"
+                },
+                {
+                    "topic": "Calculus Applications",
+                    "description": "Apply calculus concepts to real-world problems and optimization",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Mathematics"
+                },
+                {
+                    "topic": "Advanced Mathematical Proofs",
+                    "description": "Develop rigorous mathematical reasoning and proof techniques",
+                    "difficulty": "advanced",
+                    "expertise_area": "Mathematics"
+                },
+                {
+                    "topic": "Mathematical Modeling",
+                    "description": "Create mathematical models to solve complex real-world problems",
+                    "difficulty": "advanced",
+                    "expertise_area": "Mathematics"
+                },
+                {
+                    "topic": "Statistics and Probability",
+                    "description": "Learn statistical analysis and probability theory fundamentals",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Mathematics"
+                }
+            ]
+        }"#,
+        "Physics" => r#"{
+            "suggestions": [
+                {
+                    "topic": "Classical Mechanics",
+                    "description": "Study motion, forces, and energy in physical systems",
+                    "difficulty": "beginner",
+                    "expertise_area": "Physics"
+                },
+                {
+                    "topic": "Electromagnetism",
+                    "description": "Explore electric and magnetic fields and their interactions",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Physics"
+                },
+                {
+                    "topic": "Quantum Mechanics",
+                    "description": "Understand the fundamental principles of quantum physics",
+                    "difficulty": "advanced",
+                    "expertise_area": "Physics"
+                },
+                {
+                    "topic": "Thermodynamics",
+                    "description": "Learn about heat, energy, and entropy in physical systems",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Physics"
+                },
+                {
+                    "topic": "Wave Physics",
+                    "description": "Study wave phenomena and their applications",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Physics"
+                },
+                {
+                    "topic": "Relativity",
+                    "description": "Explore Einstein's theories of special and general relativity",
+                    "difficulty": "advanced",
+                    "expertise_area": "Physics"
+                }
+            ]
+        }"#,
+        "Computer Science" => r#"{
+            "suggestions": [
+                {
+                    "topic": "Programming Fundamentals",
+                    "description": "Learn basic programming concepts and problem-solving techniques",
+                    "difficulty": "beginner",
+                    "expertise_area": "Computer Science"
+                },
+                {
+                    "topic": "Data Structures and Algorithms",
+                    "description": "Study efficient ways to organize and process data",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Computer Science"
+                },
+                {
+                    "topic": "Web Development",
+                    "description": "Build modern web applications using current technologies",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Computer Science"
+                },
+                {
+                    "topic": "Machine Learning",
+                    "description": "Explore algorithms that can learn from data",
+                    "difficulty": "advanced",
+                    "expertise_area": "Computer Science"
+                },
+                {
+                    "topic": "Database Design",
+                    "description": "Learn to design and manage efficient data storage systems",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Computer Science"
+                },
+                {
+                    "topic": "Software Architecture",
+                    "description": "Design scalable and maintainable software systems",
+                    "difficulty": "advanced",
+                    "expertise_area": "Computer Science"
+                }
+            ]
+        }"#,
+        "Chemistry" => r#"{
+            "suggestions": [
+                {
+                    "topic": "Introduction to Chemistry",
+                    "description": "Learn the fundamental principles of matter and chemical reactions",
+                    "difficulty": "beginner",
+                    "expertise_area": "Chemistry"
+                },
+                {
+                    "topic": "Organic Chemistry",
+                    "description": "Study carbon-based compounds and their reactions",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Chemistry"
+                },
+                {
+                    "topic": "Physical Chemistry",
+                    "description": "Explore the physical principles underlying chemical phenomena",
+                    "difficulty": "advanced",
+                    "expertise_area": "Chemistry"
+                },
+                {
+                    "topic": "Analytical Chemistry",
+                    "description": "Learn techniques for chemical analysis and measurement",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Chemistry"
+                },
+                {
+                    "topic": "Biochemistry",
+                    "description": "Study chemical processes in living organisms",
+                    "difficulty": "advanced",
+                    "expertise_area": "Chemistry"
+                },
+                {
+                    "topic": "Inorganic Chemistry",
+                    "description": "Explore non-carbon-based compounds and their properties",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Chemistry"
+                }
+            ]
+        }"#,
+        "Biology" => r#"{
+            "suggestions": [
+                {
+                    "topic": "Cell Biology",
+                    "description": "Study the structure and function of cells",
+                    "difficulty": "beginner",
+                    "expertise_area": "Biology"
+                },
+                {
+                    "topic": "Genetics",
+                    "description": "Learn about inheritance and genetic variation",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Biology"
+                },
+                {
+                    "topic": "Evolution",
+                    "description": "Understand the mechanisms of biological evolution",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Biology"
+                },
+                {
+                    "topic": "Ecology",
+                    "description": "Study interactions between organisms and their environment",
+                    "difficulty": "intermediate",
+                    "expertise_area": "Biology"
+                },
+                {
+                    "topic": "Molecular Biology",
+                    "description": "Explore biological processes at the molecular level",
+                    "difficulty": "advanced",
+                    "expertise_area": "Biology"
+                },
+                {
+                    "topic": "Physiology",
+                    "description": "Study the functions of living organisms and their parts",
+                    "difficulty": "advanced",
+                    "expertise_area": "Biology"
+                }
+            ]
+        }"#,
+        _ => r#"{
+            "suggestions": [
+                {
+                    "topic": "Introduction to General Studies",
+                    "description": "Learn fundamental concepts and principles",
+                    "difficulty": "beginner",
+                    "expertise_area": "General"
+                },
+                {
+                    "topic": "Advanced Concepts",
+                    "description": "Explore complex topics and advanced techniques",
+                    "difficulty": "advanced",
+                    "expertise_area": "General"
+                }
+            ]
+        }"#
+    };
+    
+    Ok(suggestions.to_string())
+}
+
+#[ic_cdk::update]
+async fn get_ai_topic_suggestions(tutor_id: String) -> Result<Vec<TopicSuggestion>, String> {
+    let caller = ic_cdk::caller();
+    
+    // Get the tutor to understand their expertise and personality
+    let tutor = TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, t)| t.public_id == tutor_id && t.user_id == caller)
+            .map(|(_, t)| t.clone())
+    }).ok_or("Tutor not found or you don't have permission to access it")?;
+    
+    // Prepare the prompt for Groq API based on the Python backend logic
+    let prompt = format!(
+        "You are an advisor helping suggest learning topics based on a tutor's expertise.
+
+The tutor has the following expertise: {}
+The tutor's teaching style is: {}
+The tutor's personality is: {}
+The tutor's description: {}
+
+Generate a list of 8-10 specific topic suggestions that:
+1. Are directly related to the tutor's areas of expertise
+2. Vary in complexity (some beginner-friendly, some advanced)
+3. Cover different aspects of the tutor's knowledge domains
+4. Would make for meaningful learning sessions
+
+Format your response as a JSON array of objects, each containing:
+- topic: The suggested topic name (concise but descriptive)
+- description: A 1-2 sentence description of what the learner would gain
+- difficulty: \"beginner\", \"intermediate\", or \"advanced\"
+- expertise_area: Which of the tutor's expertise areas this relates to most
+
+Return ONLY the JSON array, no other text.
+
+Example format:
+[
+  {{
+    \"topic\": \"Introduction to Linear Algebra\",
+    \"description\": \"Learn the fundamentals of vectors, matrices, and linear transformations\",
+    \"difficulty\": \"beginner\",
+    \"expertise_area\": \"Mathematics\"
+  }}
+]",
+        tutor.expertise.join(", "),
+        tutor.teaching_style,
+        tutor.personality,
+        tutor.description
+    );
+    
+    // Call Groq API
+    let groq_response = call_icp_ai(&prompt).await?;
+    
+    // Parse the JSON response
+    let suggestions: TopicSuggestionsResponse = serde_json::from_str(&groq_response)
+        .map_err(|e| format!("Failed to parse AI response: {}", e))?;
+    
+    Ok(suggestions.suggestions)
+}
+
+#[ic_cdk::update]
+async fn validate_topic(tutor_id: String, topic: String) -> Result<TopicValidation, String> {
+    let caller = ic_cdk::caller();
+    
+    // Get the tutor to understand their expertise
+    let tutor = TUTORS.with(|tutors| {
+        tutors
+            .borrow()
+            .iter()
+            .find(|(_, t)| t.public_id == tutor_id && t.user_id == caller)
+            .map(|(_, t)| t.clone())
+    }).ok_or("Tutor not found or you don't have permission to access it")?;
+    
+    // Prepare the prompt for topic validation
+    let prompt = format!(
+        "You are an AI tutor assistant validating if a topic is relevant to a tutor's expertise.
+
+Tutor Expertise Areas: {}
+Topic to validate: {}
+
+Analyze if this topic is relevant to the tutor's expertise areas. Consider:
+1. Direct relevance to the expertise areas
+2. Appropriate difficulty level for the tutor's teaching style
+3. Whether the topic would make for a meaningful learning session
+
+Return a JSON response with:
+- is_relevant: true/false
+- confidence: 0.0 to 1.0 (how confident you are in the assessment)
+- reasoning: brief explanation of your assessment
+- suggested_alternatives: array of 2-3 alternative topics if not relevant
+
+Example format:
+{{
+  \"is_relevant\": true,
+  \"confidence\": 0.85,
+  \"reasoning\": \"This topic directly relates to the tutor's expertise in mathematics\",
+  \"suggested_alternatives\": []
+}}
+
+Return ONLY valid JSON, no other text.",
+        tutor.expertise.join(", "),
+        topic
+    );
+    
+    // Call Groq API for validation
+    let validation_response = call_icp_ai(&prompt).await?;
+    
+    // Parse the JSON response
+    let validation: TopicValidation = serde_json::from_str(&validation_response)
+        .map_err(|e| format!("Failed to parse validation response: {}", e))?;
+    
+    Ok(validation)
 }
 
 // --- Candid Generation ---

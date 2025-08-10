@@ -43,6 +43,7 @@ const ID_COUNTER_MEMORY_ID: MemoryId = MemoryId::new(20);
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
 struct IdCounters {
+    user: u64,
     tutor: u64,
     tutor_session: u64,
     learning_path: u64,
@@ -191,6 +192,11 @@ pub fn next_id(entity: &str) -> u64 {
         let mut writer = counters.borrow_mut();
         let mut current_counters = writer.get().clone();
         match entity {
+            "user" => {
+                current_counters.user += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().user
+            }
             "tutor" => {
                 current_counters.tutor += 1;
                 writer.set(current_counters).unwrap();

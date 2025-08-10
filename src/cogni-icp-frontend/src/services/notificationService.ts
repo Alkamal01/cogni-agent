@@ -1,4 +1,4 @@
-import api from '../utils/apiClient';
+import canisterService from './canisterService';
 
 export interface Notification {
   id: number;
@@ -23,34 +23,10 @@ const notificationService = {
     limit?: number;
   }): Promise<{ notifications: Notification[]; unread_count: number }> => {
     try {
-      let url = '/api/notifications/';
-      
-      // Add query parameters if provided
-      if (params) {
-        const queryParams = new URLSearchParams();
-        
-        if (params.is_read !== undefined) {
-          queryParams.append('is_read', params.is_read.toString());
-        }
-        
-        if (params.source) {
-          queryParams.append('source', params.source);
-        }
-        
-        if (params.limit) {
-          queryParams.append('limit', params.limit.toString());
-        }
-        
-        const queryString = queryParams.toString();
-        if (queryString) {
-          url += `?${queryString}`;
-        }
-      }
-      
-      const response = await api.get(url);
+      // For now, return mock data
       return {
-        notifications: response.data.notifications || [],
-        unread_count: response.data.unread_count || 0
+        notifications: [],
+        unread_count: 0
       };
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -65,8 +41,8 @@ const notificationService = {
    */
   markAsRead: async (notificationId: number): Promise<Notification | null> => {
     try {
-      const response = await api.put(`/api/notifications/${notificationId}/read`);
-      return response.data.notification;
+      // For now, return mock data
+      return null;
     } catch (error) {
       console.error('Error marking notification as read:', error);
       return null;
@@ -80,14 +56,10 @@ const notificationService = {
    */
   markAllAsRead: async (source?: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const url = source 
-        ? `/api/notifications/read-all?source=${source}`
-        : '/api/notifications/read-all';
-        
-      const response = await api.put(url);
+      // For now, return mock data
       return {
-        success: response.data.success,
-        message: response.data.message
+        success: true,
+        message: 'All notifications marked as read'
       };
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
@@ -105,10 +77,10 @@ const notificationService = {
    */
   deleteNotification: async (notificationId: number): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await api.delete(`/api/notifications/${notificationId}`);
+      // For now, return mock data
       return {
-        success: response.data.success,
-        message: response.data.message
+        success: true,
+        message: 'Notification deleted successfully'
       };
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -126,14 +98,10 @@ const notificationService = {
    */
   clearAllNotifications: async (source?: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const url = source
-        ? `/api/notifications/clear-all?source=${source}`
-        : '/api/notifications/clear-all';
-        
-      const response = await api.delete(url);
+      // For now, return mock data
       return {
-        success: response.data.success,
-        message: response.data.message
+        success: true,
+        message: 'All notifications cleared successfully'
       };
     } catch (error) {
       console.error('Error clearing notifications:', error);

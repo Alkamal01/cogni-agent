@@ -1,6 +1,5 @@
-import api from '../utils/apiClient';
+import canisterService from './canisterService';
 import { TutorFormData } from '../components/tutors/TutorFormModal';
-import { aiSocketService } from '../services/aiSocketService';
 
 // Interfaces
 export interface Tutor {
@@ -75,12 +74,6 @@ export interface LearningProgress {
   last_activity: string;
 }
 
-export interface ComprehensionAnalysis {
-  comprehension_score: number;
-  difficulty_adjustment: 'simplify' | 'maintain' | 'deepen';
-  timestamp: string;
-}
-
 export interface TutorRating {
   id: number;
   user_id: number;
@@ -104,347 +97,292 @@ export interface TopicValidation {
   suggested_alternatives?: string[];
 }
 
-// Cache for tutors
-let tutorsCache: {
-  data: Tutor[] | null;
-  timestamp: number;
-  expiryTime: number;
-} = {
-  data: null,
-  timestamp: 0,
-  expiryTime: 5 * 60 * 1000 // 5 minutes cache
-};
-
-// API Functions
 const tutorService = {
   // Tutor Management
-  getAllTutors: async (): Promise<Tutor[]> => {
-    // Check if we have a valid cache
-    const now = Date.now();
-    if (tutorsCache.data && (now - tutorsCache.timestamp < tutorsCache.expiryTime)) {
-      return tutorsCache.data;
-    }
-    
+  getAllTutors: async (backendActor?: any): Promise<Tutor[]> => {
     try {
-      const response = await api.get('/api/tutors');
-      const tutors = response.data.tutors || [];
+      const tutors = await canisterService.getAllTutors(backendActor);
       
-      // Update cache
-      tutorsCache = {
-        data: tutors,
-        timestamp: now,
-        expiryTime: 5 * 60 * 1000
+      // Convert the tutors to match the Tutor interface
+      const convertNanosecondsToDate = (nanoseconds: string | number): string => {
+        const nanos = typeof nanoseconds === 'string' ? parseInt(nanoseconds) : nanoseconds;
+        const millis = Math.floor(nanos / 1000000); // Convert nanoseconds to milliseconds
+        return new Date(millis).toISOString();
       };
       
-      return tutors;
+      return tutors.map((tutor: any) => ({
+        id: tutor.id,
+        public_id: tutor.public_id,
+        name: tutor.name,
+        description: tutor.description,
+        teaching_style: tutor.teaching_style,
+        personality: tutor.personality,
+        expertise: tutor.expertise,
+        knowledge_base: tutor.knowledge_base,
+        avatar_url: tutor.avatar_url,
+        is_pinned: tutor.is_pinned,
+        voice_id: tutor.voice_id,
+        voice_settings: tutor.voice_settings,
+        created_at: convertNanosecondsToDate(tutor.created_at),
+        updated_at: convertNanosecondsToDate(tutor.updated_at)
+      }));
     } catch (error: any) {
       console.error('Error fetching tutors:', error);
-      
-      // If we have cached data, return it even if expired
-      if (tutorsCache.data) {
-        return tutorsCache.data;
-      }
-      
-      // Otherwise, throw the error
-      throw error;
+      // Return empty array as fallback
+      return [];
     }
   },
 
-  getTutor: async (tutorId: string): Promise<Tutor> => {
-    const response = await api.get(`/api/tutors/${tutorId}`);
-    if (!response.data.tutor && response.data.id) {
-      return response.data; // Direct response is the tutor object
-    }
-    return response.data.tutor;
-  },
-
-  getTutorKnowledgeBase: async (tutorId: string): Promise<{
-    knowledge_base: any;
-    files: Array<{
-      id: number;
-      public_id: string;
-      file_name: string;
-      file_size: number;
-      file_type: string;
-      chunks_processed: number;
-      processing_time: number;
-      status: string;
-      created_at: string;
-    }>;
-  }> => {
-    console.log('Calling getTutorKnowledgeBase for tutorId:', tutorId);
-    const response = await api.get(`/api/tutors/${tutorId}/knowledge-base`);
-    console.log('getTutorKnowledgeBase response:', response.data);
-    return response.data;
-  },
-
-  deleteTutorKnowledgeBaseFile: async (tutorId: string, fileId: string): Promise<void> => {
-    await api.delete(`/api/tutors/${tutorId}/knowledge-base/files/${fileId}`);
-  },
-
-  createTutor: async (tutorData: TutorFormData): Promise<Tutor> => {
-    const formData = new FormData();
-    
-    formData.append('name', tutorData.name);
-    formData.append('description', tutorData.description);
-    formData.append('teachingStyle', tutorData.teachingStyle);
-    formData.append('personality', tutorData.personality);
-    
-    const expertise = Array.isArray(tutorData.expertise) ? tutorData.expertise : [];
-    const knowledgeBase = Array.isArray(tutorData.knowledgeBase) ? tutorData.knowledgeBase : [];
-    
-    formData.append('expertise', JSON.stringify(expertise));
-    
-    // Handle knowledge base - separate text and files
-    const textKnowledge = knowledgeBase.filter(item => typeof item === 'string' && item.trim() !== '');
-    const fileKnowledge = knowledgeBase.filter(item => item instanceof File);
-    
-    if (textKnowledge.length > 0) {
-      formData.append('knowledgeBase', JSON.stringify(textKnowledge));
-    }
-    
-    // Add knowledge base files
-    fileKnowledge.forEach((file, index) => {
-      if (file instanceof File) {
-        formData.append('knowledge_base_files', file);
-      }
-    });
-    
-    // Add voice settings if provided
-    if (tutorData.voice_id) {
-      formData.append('voice_id', tutorData.voice_id);
-    }
-    
-    if (tutorData.voice_settings) {
-      formData.append('voice_settings', JSON.stringify(tutorData.voice_settings));
-    }
-    
-    if (tutorData.imageFile) {
-      formData.append('avatar', tutorData.imageFile);
-    }
-    
+  getTutor: async (tutorId: string, backendActor?: any): Promise<Tutor> => {
     try {
-      // Always use multipart/form-data when there are files or image
-      const hasFiles = tutorData.imageFile || fileKnowledge.length > 0;
-      const response = hasFiles ?
-        await api.post('/api/tutors/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        }) :
-        await api.post('/api/tutors/', {
-          name: tutorData.name,
-          description: tutorData.description,
-          teachingStyle: tutorData.teachingStyle,
-          personality: tutorData.personality,
-          expertise,
-          knowledgeBase: textKnowledge,
-          voice_id: tutorData.voice_id,
-          voice_settings: tutorData.voice_settings
-        });
+      const result = await canisterService.getTutor(tutorId, backendActor);
       
-      return response.data.tutor;
-    } catch (error: any) {
+      // Convert the result to match the Tutor interface
+      const convertNanosecondsToDate = (nanoseconds: string | number): string => {
+        const nanos = typeof nanoseconds === 'string' ? parseInt(nanoseconds) : nanoseconds;
+        const millis = Math.floor(nanos / 1000000); // Convert nanoseconds to milliseconds
+        return new Date(millis).toISOString();
+      };
+      
+      return {
+        id: result.id,
+        public_id: result.public_id,
+        name: result.name,
+        description: result.description,
+        teaching_style: result.teaching_style,
+        personality: result.personality,
+        expertise: result.expertise,
+        knowledge_base: result.knowledge_base,
+        avatar_url: result.avatar_url,
+        is_pinned: result.is_pinned,
+        voice_id: result.voice_id,
+        voice_settings: result.voice_settings,
+        created_at: convertNanosecondsToDate(result.created_at),
+        updated_at: convertNanosecondsToDate(result.updated_at)
+      };
+    } catch (error) {
+      console.error('Error fetching tutor:', error);
       throw error;
     }
   },
 
-  updateTutor: async (tutorId: string, tutorData: FormData): Promise<Tutor> => {
-    const response = await api.put(`/api/tutors/${tutorId}`, tutorData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data.tutor;
-  },
-
-  deleteTutor: async (tutorId: string): Promise<void> => {
-    await api.delete(`/api/tutors/${tutorId}`);
+  createTutor: async (tutorData: TutorFormData, backendActor?: any): Promise<Tutor> => {
+    try {
+      const result = await canisterService.createTutor({
+        name: tutorData.name,
+        description: tutorData.description,
+        teachingStyle: tutorData.teachingStyle,
+        personality: tutorData.personality,
+        expertise: Array.isArray(tutorData.expertise) ? tutorData.expertise : [],
+        knowledgeBase: Array.isArray(tutorData.knowledgeBase) ? tutorData.knowledgeBase.filter(item => typeof item === 'string') as string[] : [],
+        voiceId: tutorData.voice_id,
+        voiceSettings: tutorData.voice_settings,
+        avatarUrl: tutorData.imageUrl
+      }, backendActor);
+      
+      // Convert the result to match the Tutor interface
+      // Convert nanoseconds to milliseconds for Date constructor
+      const convertNanosecondsToDate = (nanoseconds: string | number): string => {
+        const nanos = typeof nanoseconds === 'string' ? parseInt(nanoseconds) : nanoseconds;
+        const millis = Math.floor(nanos / 1000000); // Convert nanoseconds to milliseconds
+        return new Date(millis).toISOString();
+      };
+      
+      return {
+        id: result.id,
+        public_id: result.public_id,
+        name: result.name,
+        description: result.description,
+        teaching_style: result.teaching_style,
+        personality: result.personality,
+        expertise: result.expertise,
+        knowledge_base: result.knowledge_base,
+        avatar_url: result.avatar_url,
+        is_pinned: result.is_pinned,
+        voice_id: result.voice_id,
+        voice_settings: result.voice_settings,
+        created_at: convertNanosecondsToDate(result.created_at),
+        updated_at: convertNanosecondsToDate(result.updated_at)
+      };
+    } catch (error) {
+      console.error('Error creating tutor:', error);
+      throw error;
+    }
   },
 
   // Session Management
   createSession: async (tutorId: string, sessionData: { topic: string }): Promise<any> => {
-    const response = await api.post(`/api/tutors/${tutorId}/sessions`, sessionData);
-    return response.data;
+    // For now, return mock session data
+    return {
+      session: {
+        public_id: 'mock-session-id',
+        user_id: 'mock-user-id',
+        tutor_id: tutorId,
+        topic: sessionData.topic,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    };
   },
 
   getSession: async (sessionId: string): Promise<any> => {
-    console.log('Getting session data for:', sessionId);
+    // For now, return mock session data
+    return {
+      session: {
+        public_id: sessionId,
+        user_id: 'mock-user-id',
+        tutor_id: 'mock-tutor-id',
+        topic: 'Mock Topic',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    };
+  },
+
+  sendMessage: async (sessionId: string, message: string): Promise<TutorMessage> => {
+    // For now, return mock message data
+    return {
+      id: 'mock-message-id',
+      session_id: sessionId,
+      sender: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  // Mock methods for other functionality
+  updateTutor: async (tutorId: string, tutorData: any): Promise<Tutor> => {
+    return {
+      id: 1,
+      public_id: tutorId,
+      name: 'Updated Tutor',
+      description: 'Updated description',
+      teaching_style: 'interactive',
+      personality: 'friendly',
+      expertise: ['math'],
+      knowledge_base: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  },
+
+  deleteTutor: async (tutorId: string, backendActor?: any): Promise<void> => {
     try {
-      const response = await api.get(`/api/tutors/sessions/${sessionId}`);
-      console.log('Session data received:', response.data);
-      return response.data;
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
+      }
+      
+      console.log('Deleting tutor with ID:', tutorId);
+      const result = await backendActor.delete_tutor(tutorId);
+      console.log('Delete result:', result);
+      
+      if ('Err' in result) {
+        throw new Error(result.Err);
+      }
     } catch (error) {
-      console.error('Error getting session:', error);
+      console.error('Error deleting tutor:', error);
       throw error;
     }
   },
 
-  getAllSessions: async (): Promise<Array<{
-    session: TutorSession,
-    tutor: Tutor,
-    course: TutorCourse,
-    progress: LearningProgress,
-    last_message: TutorMessage
-  }>> => {
-    const response = await api.get('/api/tutors/sessions');
-    return response.data.sessions;
-  },
-
-  getTutorSessions: async (tutorId: string): Promise<Array<{
-    session: TutorSession,
-    tutor: Tutor,
-    course: TutorCourse,
-    progress: LearningProgress,
-    last_message: TutorMessage
-  }>> => {
-    const response = await api.get(`/api/tutors/${tutorId}/sessions`);
-    return response.data.sessions;
-  },
-
-  sendMessage: async (sessionId: string, message: string): Promise<TutorMessage> => {
-    // Use HTTP by default
-    const response = await api.post(`/api/tutors/sessions/${sessionId}/message`, {
-      message: message
-    });
-    return response.data.user_message;
-  },
-
-  // Get tutor's response to a message
-  getTutorResponse: async (sessionId: string, messageId: string): Promise<TutorMessage> => {
-    const response = await api.get(`/api/tutors/sessions/${sessionId}/messages/${messageId}/response`);
-    return response.data.tutor_message;
-  },
-
-  // Check message status
-  checkMessageStatus: async (sessionId: string, messageId: string): Promise<{
-    status: 'pending' | 'complete' | 'error';
-    message?: TutorMessage;
-  }> => {
-    const response = await api.get(`/api/tutors/sessions/${sessionId}/messages/${messageId}/status`);
-    return response.data;
-  },
-
-  // Poll for tutor response
-  pollForResponse: async (sessionId: string, messageId: string, maxAttempts: number = 30): Promise<TutorMessage> => {
-    let attempts = 0;
-    while (attempts < maxAttempts) {
-      const status = await tutorService.checkMessageStatus(sessionId, messageId);
-      if (status.status === 'complete' && status.message) {
-        return status.message;
-      } else if (status.status === 'error') {
-        throw new Error('Failed to get tutor response');
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between attempts
-      attempts++;
-    }
-    throw new Error('Timeout waiting for tutor response');
-  },
-
-  completeModule: async (sessionId: string, moduleId: number): Promise<{ success: boolean; message: string; progress?: LearningProgress }> => {
-    const response = await api.post(`/api/tutors/sessions/${sessionId}/modules/${moduleId}/complete`);
-    return response.data;
-  },
-
-  completeSession: async (sessionId: string): Promise<any> => {
-    const response = await api.post(`/api/tutors/sessions/${sessionId}/complete`);
-    return response.data;
-  },
-
-  deleteSession: async (sessionId: string): Promise<void> => {
-    await api.delete(`/api/tutors/sessions/${sessionId}`);
-  },
-
-  checkTutorHealth: async (): Promise<{ success: boolean, message: string, api_response?: string }> => {
-    try {
-      const response = await api.get('/api/tutors/health/groq');
-      return response.data;
-    } catch (error: any) {
-      console.error('Error checking tutor health:', error);
-      if (error.response?.data) {
-        return error.response.data;
-      }
-      return { 
-        success: false, 
-        message: error.message || 'Failed to check tutor health'
-      };
-    }
-  },
-
-  // Rating methods
-  getTutorRatings: async (tutorId: string): Promise<any> => {
-    const response = await api.get(`/api/tutors/${tutorId}/ratings`);
-    return response.data;
-  },
-
-  rateTutor: async (tutorId: string, rating: number, comment: string): Promise<any> => {
-    const response = await api.post(`/api/tutors/${tutorId}/rate`, { rating, comment });
-    return response.data;
-  },
-
-  deleteRating: async (tutorId: string, ratingId: number): Promise<any> => {
-    const response = await api.delete(`/api/tutors/${tutorId}/ratings/${ratingId}`);
-    return response.data;
-  },
-
-  togglePin: async (tutorId: string): Promise<Tutor> => {
-    const response = await api.post(`/api/tutors/${tutorId}/toggle-pin`);
-    return response.data.tutor;
-  },
-
-  // Get topic suggestions based on tutor expertise
-  getSuggestedTopics: async (tutorId: string): Promise<TopicSuggestion[]> => {
-    const response = await api.get(`/api/tutors/${tutorId}/suggest-topics`);
-    if (response.data.success && Array.isArray(response.data.suggestions)) {
-      return response.data.suggestions;
-    }
+  getAllSessions: async (): Promise<any[]> => {
     return [];
   },
 
-  // Validate if a topic is relevant to tutor expertise
+  getTutorSessions: async (tutorId: string): Promise<any[]> => {
+    return [];
+  },
+
+  getTutorResponse: async (sessionId: string, messageId: string): Promise<TutorMessage> => {
+    return {
+      id: 'mock-response-id',
+      session_id: sessionId,
+      sender: 'tutor',
+      content: 'This is a mock response from the tutor.',
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  // Mock methods for missing functionality
+  getTutorKnowledgeBaseFiles: async (tutorId: string): Promise<any[]> => {
+    return [];
+  },
+
+  deleteTutorKnowledgeBaseFile: async (tutorId: string, fileId: string): Promise<void> => {
+    console.log('Deleting knowledge base file:', fileId);
+  },
+
+  getSuggestedTopics: async (tutorId: string, backendActor?: any): Promise<TopicSuggestion[]> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
+      }
+
+      // Fetch tutor data to get expertise and personality
+      const tutor = await canisterService.getTutor(tutorId, backendActor);
+      console.log('Fetched tutor for AI topic suggestions:', tutor);
+
+      // Call the backend to get AI-generated topic suggestions
+      const suggestions = await backendActor.get_ai_topic_suggestions(tutorId);
+      console.log('AI topic suggestions from backend:', suggestions);
+
+      if ('Err' in suggestions) {
+        throw new Error(suggestions.Err);
+      }
+
+      // Convert the suggestions to match the TopicSuggestion interface
+      return suggestions.Ok.map((suggestion: any) => ({
+        topic: suggestion.topic,
+        description: suggestion.description,
+        difficulty: suggestion.difficulty,
+        expertise_area: suggestion.expertise_area
+      }));
+    } catch (error) {
+      console.error('Error getting AI suggested topics:', error);
+      return [];
+    }
+  },
+
   validateTopic: async (tutorId: string, topic: string): Promise<TopicValidation> => {
-    const response = await api.post(`/api/tutors/${tutorId}/validate-topic`, { topic });
-    return response.data;
+    return {
+      is_relevant: true,
+      confidence: 0.8,
+      reasoning: 'Mock validation'
+    };
   },
 
   startSession: async (tutorId: string, topic: string): Promise<TutorSession> => {
-    const response = await api.post<{ session: TutorSession }>(`/api/tutors/${tutorId}/sessions`, { topic });
-    return response.data.session;
+    return {
+      public_id: 'mock-session-id',
+      user_id: 'mock-user-id',
+      tutor_id: tutorId,
+      topic: topic,
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
   },
 
-  // Knowledge Base Management
-  getTutorKnowledgeBaseFiles: async (tutorId: string): Promise<any[]> => {
-    const response = await api.get(`/api/tutors/${tutorId}/knowledge-base`);
-    return response.data.files || [];
+  deleteSession: async (sessionId: string): Promise<void> => {
+    console.log('Deleting session:', sessionId);
   },
 
-  uploadKnowledgeBaseFiles: async (tutorId: string, files: File[]): Promise<any> => {
-    const formData = new FormData();
-    files.forEach(file => {
-      formData.append('files', file);
-    });
-    
-    const response = await api.post(`/api/tutors/${tutorId}/knowledge-base/upload`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    return response.data;
-  },
-
-  searchKnowledgeBase: async (tutorId: string, query: string, topK: number = 5): Promise<any> => {
-    const response = await api.post(`/api/tutors/${tutorId}/knowledge-base/search`, {
-      query,
-      top_k: topK
-    });
-    return response.data;
-  },
-
-  deleteKnowledgeBase: async (tutorId: string): Promise<any> => {
-    const response = await api.delete(`/api/tutors/${tutorId}/knowledge-base`);
-    return response.data;
-  },
-
-  deleteKnowledgeBaseFile: async (tutorId: string, fileId: string): Promise<any> => {
-    const response = await api.delete(`/api/tutors/${tutorId}/knowledge-base/files/${fileId}`);
-    return response.data;
-  },
+  togglePin: async (tutorId: string): Promise<Tutor> => {
+    return {
+      id: 1,
+      public_id: tutorId,
+      name: 'Mock Tutor',
+      description: 'A mock tutor for testing',
+      teaching_style: 'interactive',
+      personality: 'friendly',
+      expertise: ['math', 'science'],
+      knowledge_base: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
 };
 
 export default tutorService; 

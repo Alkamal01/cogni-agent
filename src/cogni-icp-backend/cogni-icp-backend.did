@@ -37,6 +37,7 @@ type User = record {
     blockchain_wallet_type : opt text;
     blockchain_wallet_address : opt text;
     blockchain_wallet_connected_at : opt nat64;
+    password_hash : opt text;
 };
 type Tutor = record {
     id : nat64;
@@ -75,6 +76,24 @@ type Result_6 = variant { Ok : nat64; Err : text };
 type Result_7 = variant { Ok : StudyGroup; Err : text };
 type Result_8 = variant { Ok : GroupMembership; Err : text };
 type Result_9 = variant { Ok : Task; Err : text };
+type Result_10 = variant { Ok : Tutor; Err : text };
+type Result_11 = variant { Ok : Tutor; Err : text };
+type Result_12 = variant { Ok : text; Err : text };
+type Result_13 = variant { Ok : Tutor; Err : text };
+type Result_14 = variant { Ok : vec TopicSuggestion; Err : text };
+type Result_15 = variant { Ok : TopicValidation; Err : text };
+type TopicSuggestion = record {
+    topic : text;
+    description : text;
+    difficulty : text;
+    expertise_area : text;
+};
+type TopicValidation = record {
+    is_relevant : bool;
+    confidence : float64;
+    reasoning : text;
+    suggested_alternatives : vec text;
+};
 type UserConnection = record {
     id : nat64;
     status : text;
@@ -144,7 +163,11 @@ service : {
     create_subscription : () -> (Result_3);
     create_subscription_plan_admin : () -> (Result_3);
     create_task : (text, text, text, text, nat32, nat32) -> (Result_9);
-    create_tutor : (text, text, text, text, vec text) -> (Tutor);
+    create_tutor : (text, text, text, text, vec text, opt vec text, opt text, opt vec record { text; text }, opt text) -> (Result_10);
+    get_tutor_by_public_id : (text) -> (opt Tutor) query;
+    update_tutor : (text, opt text, opt text, opt text, opt text, opt vec text, opt vec text, opt text, opt vec record { text; text }, opt text) -> (Result_11);
+    delete_tutor : (text) -> (Result_12);
+    toggle_tutor_pin : (text) -> (Result_13);
     create_user : (text, text) -> (User);
     get_all_users_admin : () -> (Result_2) query;
     get_connections : () -> (vec UserConnection) query;
@@ -158,4 +181,9 @@ service : {
     send_connection_request : (principal, opt text) -> (Result_1);
     update_user_status_admin : (principal, text) -> (Result_2);
     verify_zk_proof : () -> (Result_4);
+    register_user : (text, text, text) -> (Result_2);
+    login_user : (text, text) -> (Result_2);
+    get_user_by_email : (text) -> (opt User) query;
+    get_ai_topic_suggestions : (text) -> (Result_14);
+    validate_topic : (text, text) -> (Result_15);
 } 

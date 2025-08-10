@@ -40,7 +40,6 @@ interface RecentMessage {
   };
 }
 
-// Utility functions for formatting dates and times
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { 

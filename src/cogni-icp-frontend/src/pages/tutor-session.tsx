@@ -52,7 +52,7 @@ interface TopicValidation {
 const TutorSession: React.FC = () => {
   const { id: tutorId, sessionId } = useParams<SessionParams>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, backendActor } = useAuth();
   const { showToast } = useToast();
 
   // State management
@@ -109,7 +109,7 @@ const TutorSession: React.FC = () => {
       setError(null);
     
       // Fetch tutor data
-      const tutorData = await tutorService.getTutor(tutorId);
+      const tutorData = await tutorService.getTutor(tutorId, backendActor);
       setTutor(tutorData);
 
       if (sessionId && sessionId !== 'undefined') {
@@ -156,7 +156,7 @@ const TutorSession: React.FC = () => {
   const fetchTopicSuggestions = async (tutorId: string): Promise<void> => {
     try {
       setIsLoadingSuggestions(true);
-      const suggestions = await tutorService.getSuggestedTopics(tutorId);
+      const suggestions = await tutorService.getSuggestedTopics(tutorId, backendActor);
         setTopicSuggestions(suggestions);
     } catch (err) {
       console.error('Error fetching topic suggestions:', err);
