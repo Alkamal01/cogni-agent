@@ -12,6 +12,7 @@ use models::study_group::{StudyGroup, GroupMembership};
 use state::{STUDY_GROUPS, GROUP_MEMBERSHIPS};
 use models::gamification::{Task, UserTaskCompletion};
 use state::{TASKS, USER_TASK_COMPLETIONS};
+use ic_llm::Model;
 
 // Simple password hashing (in production, use proper crypto)
 fn hash_password(password: &str) -> String {
@@ -112,7 +113,15 @@ fn register_user(username: String, email: String, password: String) -> Result<Us
     
     // Generate a unique ID for traditional users
     let user_id = next_id("user");
-    let principal = Principal::from_text(&format!("traditional-{}", user_id)).unwrap_or(Principal::anonymous());
+
+    // Derive a deterministic 32-byte seed from user_id and create a valid unique Principal
+    let mut seed = [0u8; 32];
+    let user_id_bytes = user_id.to_be_bytes();
+    seed[0..8].copy_from_slice(&user_id_bytes);
+    seed[8..16].copy_from_slice(&user_id_bytes);
+    seed[16..24].copy_from_slice(&user_id_bytes);
+    seed[24..32].copy_from_slice(&user_id_bytes);
+    let principal = Principal::self_authenticating(&seed);
 
     let default_settings = UserSettings {
         learning_style: "visual".to_string(),
@@ -769,245 +778,8 @@ struct TopicValidation {
 }
 
 async fn call_icp_ai(prompt: &str) -> Result<String, String> {
-    // For now, generate dynamic suggestions based on the prompt content
-    // The prompt contains the tutor's expertise information
-    
-    // Extract expertise from the prompt - look for the expertise areas in the prompt
-    let expertise = if prompt.contains("expertise: Physics") || prompt.contains("Expertise Areas: Physics") {
-        "Physics"
-    } else if prompt.contains("expertise: Mathematics") || prompt.contains("Expertise Areas: Mathematics") {
-        "Mathematics"
-    } else if prompt.contains("expertise: Computer Science") || prompt.contains("Expertise Areas: Computer Science") {
-        "Computer Science"
-    } else if prompt.contains("expertise: Chemistry") || prompt.contains("Expertise Areas: Chemistry") {
-        "Chemistry"
-    } else if prompt.contains("expertise: Biology") || prompt.contains("Expertise Areas: Biology") {
-        "Biology"
-    } else {
-        "General"
-    };
-    
-    // Generate dynamic suggestions based on expertise
-    let suggestions = match expertise {
-        "Mathematics" => r#"{
-            "suggestions": [
-                {
-                    "topic": "Introduction to Linear Algebra",
-                    "description": "Learn the fundamentals of vectors, matrices, and linear transformations",
-                    "difficulty": "beginner",
-                    "expertise_area": "Mathematics"
-                },
-                {
-                    "topic": "Differential Equations",
-                    "description": "Explore first and second order differential equations and their applications",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Mathematics"
-                },
-                {
-                    "topic": "Calculus Applications",
-                    "description": "Apply calculus concepts to real-world problems and optimization",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Mathematics"
-                },
-                {
-                    "topic": "Advanced Mathematical Proofs",
-                    "description": "Develop rigorous mathematical reasoning and proof techniques",
-                    "difficulty": "advanced",
-                    "expertise_area": "Mathematics"
-                },
-                {
-                    "topic": "Mathematical Modeling",
-                    "description": "Create mathematical models to solve complex real-world problems",
-                    "difficulty": "advanced",
-                    "expertise_area": "Mathematics"
-                },
-                {
-                    "topic": "Statistics and Probability",
-                    "description": "Learn statistical analysis and probability theory fundamentals",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Mathematics"
-                }
-            ]
-        }"#,
-        "Physics" => r#"{
-            "suggestions": [
-                {
-                    "topic": "Classical Mechanics",
-                    "description": "Study motion, forces, and energy in physical systems",
-                    "difficulty": "beginner",
-                    "expertise_area": "Physics"
-                },
-                {
-                    "topic": "Electromagnetism",
-                    "description": "Explore electric and magnetic fields and their interactions",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Physics"
-                },
-                {
-                    "topic": "Quantum Mechanics",
-                    "description": "Understand the fundamental principles of quantum physics",
-                    "difficulty": "advanced",
-                    "expertise_area": "Physics"
-                },
-                {
-                    "topic": "Thermodynamics",
-                    "description": "Learn about heat, energy, and entropy in physical systems",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Physics"
-                },
-                {
-                    "topic": "Wave Physics",
-                    "description": "Study wave phenomena and their applications",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Physics"
-                },
-                {
-                    "topic": "Relativity",
-                    "description": "Explore Einstein's theories of special and general relativity",
-                    "difficulty": "advanced",
-                    "expertise_area": "Physics"
-                }
-            ]
-        }"#,
-        "Computer Science" => r#"{
-            "suggestions": [
-                {
-                    "topic": "Programming Fundamentals",
-                    "description": "Learn basic programming concepts and problem-solving techniques",
-                    "difficulty": "beginner",
-                    "expertise_area": "Computer Science"
-                },
-                {
-                    "topic": "Data Structures and Algorithms",
-                    "description": "Study efficient ways to organize and process data",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Computer Science"
-                },
-                {
-                    "topic": "Web Development",
-                    "description": "Build modern web applications using current technologies",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Computer Science"
-                },
-                {
-                    "topic": "Machine Learning",
-                    "description": "Explore algorithms that can learn from data",
-                    "difficulty": "advanced",
-                    "expertise_area": "Computer Science"
-                },
-                {
-                    "topic": "Database Design",
-                    "description": "Learn to design and manage efficient data storage systems",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Computer Science"
-                },
-                {
-                    "topic": "Software Architecture",
-                    "description": "Design scalable and maintainable software systems",
-                    "difficulty": "advanced",
-                    "expertise_area": "Computer Science"
-                }
-            ]
-        }"#,
-        "Chemistry" => r#"{
-            "suggestions": [
-                {
-                    "topic": "Introduction to Chemistry",
-                    "description": "Learn the fundamental principles of matter and chemical reactions",
-                    "difficulty": "beginner",
-                    "expertise_area": "Chemistry"
-                },
-                {
-                    "topic": "Organic Chemistry",
-                    "description": "Study carbon-based compounds and their reactions",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Chemistry"
-                },
-                {
-                    "topic": "Physical Chemistry",
-                    "description": "Explore the physical principles underlying chemical phenomena",
-                    "difficulty": "advanced",
-                    "expertise_area": "Chemistry"
-                },
-                {
-                    "topic": "Analytical Chemistry",
-                    "description": "Learn techniques for chemical analysis and measurement",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Chemistry"
-                },
-                {
-                    "topic": "Biochemistry",
-                    "description": "Study chemical processes in living organisms",
-                    "difficulty": "advanced",
-                    "expertise_area": "Chemistry"
-                },
-                {
-                    "topic": "Inorganic Chemistry",
-                    "description": "Explore non-carbon-based compounds and their properties",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Chemistry"
-                }
-            ]
-        }"#,
-        "Biology" => r#"{
-            "suggestions": [
-                {
-                    "topic": "Cell Biology",
-                    "description": "Study the structure and function of cells",
-                    "difficulty": "beginner",
-                    "expertise_area": "Biology"
-                },
-                {
-                    "topic": "Genetics",
-                    "description": "Learn about inheritance and genetic variation",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Biology"
-                },
-                {
-                    "topic": "Evolution",
-                    "description": "Understand the mechanisms of biological evolution",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Biology"
-                },
-                {
-                    "topic": "Ecology",
-                    "description": "Study interactions between organisms and their environment",
-                    "difficulty": "intermediate",
-                    "expertise_area": "Biology"
-                },
-                {
-                    "topic": "Molecular Biology",
-                    "description": "Explore biological processes at the molecular level",
-                    "difficulty": "advanced",
-                    "expertise_area": "Biology"
-                },
-                {
-                    "topic": "Physiology",
-                    "description": "Study the functions of living organisms and their parts",
-                    "difficulty": "advanced",
-                    "expertise_area": "Biology"
-                }
-            ]
-        }"#,
-        _ => r#"{
-            "suggestions": [
-                {
-                    "topic": "Introduction to General Studies",
-                    "description": "Learn fundamental concepts and principles",
-                    "difficulty": "beginner",
-                    "expertise_area": "General"
-                },
-                {
-                    "topic": "Advanced Concepts",
-                    "description": "Explore complex topics and advanced techniques",
-                    "difficulty": "advanced",
-                    "expertise_area": "General"
-                }
-            ]
-        }"#
-    };
-    
-    Ok(suggestions.to_string())
+    let text = ic_llm::prompt(Model::Llama3_1_8B, prompt).await;
+    Ok(text)
 }
 
 #[ic_cdk::update]
