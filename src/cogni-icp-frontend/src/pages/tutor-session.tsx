@@ -12,8 +12,7 @@ import tutorService, {
   LearningProgress
 } from '../services/tutorService';
 import { useDebounce } from '../hooks/useDebounce';
-import { aiSocketService, TutorMessageChunk, ProgressUpdate } from '../services/aiSocketService';
-import { useStreamingTutor } from '../hooks/useStreamingTutor';
+import icpChatService, { TutorMessageChunk, ProgressUpdate } from '../services/icpChatService';
 
 // Import new components
 import DeleteConfirmationModal from '../components/tutors/DeleteConfirmationModal';
@@ -90,15 +89,11 @@ const TutorSession: React.FC = () => {
 
   const [debouncedTopic] = useDebounce(topic, 500);
 
-  // Use the streaming tutor hook for message management
-  const { 
-    messages, 
-    status: tutorStatus, 
-    sendMessage, 
-    isConnected, 
-    isError, 
-    loadInitialMessages 
-  } = useStreamingTutor(sessionId);
+  // Chat state management
+  const [messages, setMessages] = useState<TutorMessageChunk[]>([]);
+  const [tutorStatus, setTutorStatus] = useState<'idle' | 'thinking' | 'responding' | 'error'>('idle');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   // Initialize session
   const initializeSession = async () => {
@@ -120,8 +115,8 @@ const TutorSession: React.FC = () => {
         setModules(sessionData.modules || []);
         setProgress(sessionData.progress);
 
-        // Load initial messages using the hook
-        loadInitialMessages(sessionData.messages || []);
+        // Load initial messages
+        setMessages(sessionData.messages || []);
       } else {
         // No active session, show topic list
         await fetchTutorSessions();
@@ -204,12 +199,29 @@ const TutorSession: React.FC = () => {
   };
 
   // Send message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!input.trim() || !session || isSending) return;
 
-    sendMessage(input.trim());
-    setInput('');
-    setIsSending(true);
+    try {
+      setIsSending(true);
+      setTutorStatus('thinking');
+      
+      // Send message via ICP chat service
+      const success = await icpChatService.sendMessage(input.trim());
+      
+      if (success) {
+        setInput('');
+      } else {
+        setTutorStatus('error');
+        setIsError(true);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setTutorStatus('error');
+      setIsError(true);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Handle key press
@@ -295,17 +307,17 @@ const TutorSession: React.FC = () => {
   }, [debouncedTopic, tutorId]);
 
   useEffect(() => {
-    // WebSocket event listeners for progress updates only
+    // Progress updates from ICP chat service
     const handleProgress = (update: ProgressUpdate) => {
       setProgress(prev => prev ? { ...prev, progress_percentage: update.progress.progress_percentage } : null);
     };
 
     if (session) {
-      aiSocketService.onProgressUpdate(handleProgress);
+      icpChatService.onProgressUpdate(handleProgress);
     }
 
     return () => {
-      aiSocketService.offProgressUpdate(handleProgress);
+      icpChatService.offProgressUpdate(handleProgress);
     };
   }, [session]);
 

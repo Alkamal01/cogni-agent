@@ -82,6 +82,9 @@ type Result_12 = variant { Ok : text; Err : text };
 type Result_13 = variant { Ok : Tutor; Err : text };
 type Result_14 = variant { Ok : vec TopicSuggestion; Err : text };
 type Result_15 = variant { Ok : TopicValidation; Err : text };
+type Result_16 = variant { Ok : text; Err : text };
+type Result_17 = variant { Ok : vec ChatMessage; Err : text };
+type Result_18 = variant { Ok : ProgressUpdate; Err : text };
 type TopicSuggestion = record {
     topic : text;
     description : text;
@@ -93,6 +96,37 @@ type TopicValidation = record {
     confidence : float64;
     reasoning : text;
     suggested_alternatives : vec text;
+};
+type ChatMessage = record {
+    id : text;
+    session_id : text;
+    sender : text;
+    content : text;
+    timestamp : nat64;
+    has_audio : opt bool;
+};
+type ChatSession = record {
+    id : text;
+    tutor_id : text;
+    user_id : principal;
+    topic : text;
+    status : text;
+    created_at : nat64;
+    updated_at : nat64;
+};
+type ProgressData = record {
+    id : nat64;
+    user_id : text;
+    session_id : text;
+    course_id : nat64;
+    current_module_id : opt nat64;
+    progress_percentage : float64;
+    last_activity : text;
+};
+type ProgressUpdate = record {
+    session_id : text;
+    user_id : text;
+    progress : ProgressData;
 };
 type UserConnection = record {
     id : nat64;
@@ -186,4 +220,7 @@ service : {
     get_user_by_email : (text) -> (opt User) query;
     get_ai_topic_suggestions : (text) -> (Result_14);
     validate_topic : (text, text) -> (Result_15);
+    send_tutor_message : (text, text) -> (Result_16);
+    get_session_messages : (text) -> (Result_17) query;
+    get_session_progress : (text) -> (Result_18) query;
 } 

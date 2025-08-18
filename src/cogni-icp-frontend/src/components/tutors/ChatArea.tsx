@@ -6,11 +6,12 @@ import { SendIcon } from './icons';
 import ChatMessage from './ChatMessage';
 import VoiceChat from './VoiceChat';
 import { MarkdownRenderer } from '../shared';
-import { Tutor, TutorMessage } from '../../services/tutorService';
+import { Tutor } from '../../services/tutorService';
+import { TutorMessageChunk } from '../../services/icpChatService';
 
 interface ChatAreaProps {
   tutor: Tutor;
-  messages: TutorMessage[];
+  messages: TutorMessageChunk[];
   input: string;
   isSending: boolean;
   tutorStatus: string;

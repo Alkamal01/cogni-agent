@@ -13,6 +13,8 @@ use state::{STUDY_GROUPS, GROUP_MEMBERSHIPS};
 use models::gamification::{Task, UserTaskCompletion};
 use state::{TASKS, USER_TASK_COMPLETIONS};
 use ic_llm::Model;
+use ic_stable_structures::{StableBTreeMap, memory_manager::MemoryId};
+use std::cell::RefCell;
 
 // Simple password hashing (in production, use proper crypto)
 fn hash_password(password: &str) -> String {
@@ -914,6 +916,192 @@ Return ONLY valid JSON, no other text.",
         .map_err(|e| format!("Failed to parse validation response: {}", e))?;
     
     Ok(validation)
+}
+
+// --- Chat Session Management ---
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct ChatMessage {
+    id: String,
+    session_id: String,
+    sender: String, // "user" or "tutor"
+    content: String,
+    timestamp: u64,
+    has_audio: Option<bool>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct ChatSession {
+    id: String,
+    tutor_id: String,
+    user_id: Principal,
+    topic: String,
+    status: String, // "active", "completed", "archived"
+    created_at: u64,
+    updated_at: u64,
+}
+
+// Simple in-memory storage for chat (will be replaced with stable storage later)
+thread_local! {
+    static CHAT_SESSIONS: RefCell<std::collections::HashMap<String, ChatSession>> = RefCell::new(std::collections::HashMap::new());
+    static CHAT_MESSAGES: RefCell<std::collections::HashMap<String, Vec<ChatMessage>>> = RefCell::new(std::collections::HashMap::new());
+}
+
+#[ic_cdk::update]
+async fn send_tutor_message(session_id: String, content: String) -> Result<String, String> {
+    let caller = ic_cdk::caller();
+    
+    // Verify session exists and user has access
+    let session = CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow().get(&session_id).cloned()
+    }).ok_or("Session not found")?;
+    
+    if session.user_id != caller {
+        return Err("You don't have permission to access this session".to_string());
+    }
+    
+    // Create user message
+    let user_message = ChatMessage {
+        id: format!("msg_{}", next_id("message")),
+        session_id: session_id.clone(),
+        sender: "user".to_string(),
+        content: content.clone(),
+        timestamp: ic_cdk::api::time(),
+        has_audio: Some(false),
+    };
+    
+    // Store user message
+    CHAT_MESSAGES.with(|messages| {
+        let mut messages = messages.borrow_mut();
+        let session_messages = messages.entry(session_id.clone()).or_insert_with(Vec::new);
+        session_messages.push(user_message);
+    });
+    
+    // Generate AI response using the tutor's expertise
+    let tutor = TUTORS.with(|tutors| {
+        tutors.borrow().iter().find(|(_, t)| t.public_id == session.tutor_id).map(|(_, t)| t.clone())
+    }).ok_or("Tutor not found")?;
+    
+    // Create AI prompt for tutor response
+    let prompt = format!(
+        "You are a tutor with expertise in: {}. Teaching style: {}. Personality: {}.
+        
+A student asks: \"{}\"
+
+Provide a helpful, educational response that:
+1. Directly addresses the student's question
+2. Uses your expertise and teaching style
+3. Maintains your personality
+4. Is educational and informative
+5. Encourages further learning
+
+Keep your response concise but comprehensive (2-4 sentences).",
+        tutor.expertise.join(", "),
+        tutor.teaching_style,
+        tutor.personality,
+        content
+    );
+    
+    // Get AI response
+    let ai_response = call_icp_ai(&prompt).await?;
+    
+    // Create tutor message
+    let tutor_message = ChatMessage {
+        id: format!("msg_{}", next_id("message")),
+        session_id: session_id.clone(),
+        sender: "tutor".to_string(),
+        content: ai_response,
+        timestamp: ic_cdk::api::time(),
+        has_audio: Some(false),
+    };
+    
+    // Store tutor message
+    CHAT_MESSAGES.with(|messages| {
+        let mut messages = messages.borrow_mut();
+        let session_messages = messages.entry(session_id.clone()).or_insert_with(Vec::new);
+        session_messages.push(tutor_message.clone());
+    });
+    
+    // Update session timestamp
+    CHAT_SESSIONS.with(|sessions| {
+        let mut sessions = sessions.borrow_mut();
+        if let Some(session) = sessions.get_mut(&session_id) {
+            session.updated_at = ic_cdk::api::time();
+        }
+    });
+    
+    Ok(tutor_message.id)
+}
+
+#[ic_cdk::query]
+fn get_session_messages(session_id: String) -> Result<Vec<ChatMessage>, String> {
+    let caller = ic_cdk::caller();
+    
+    // Verify session exists and user has access
+    let session = CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow().get(&session_id).cloned()
+    }).ok_or("Session not found")?;
+    
+    if session.user_id != caller {
+        return Err("You don't have permission to access this session".to_string());
+    }
+    
+    // Get messages for the session
+    let messages = CHAT_MESSAGES.with(|messages| {
+        messages.borrow().get(&session_id).cloned().unwrap_or_default()
+    });
+    
+    Ok(messages)
+}
+
+#[ic_cdk::query]
+fn get_session_progress(session_id: String) -> Result<ProgressUpdate, String> {
+    let caller = ic_cdk::caller();
+    
+    // Verify session exists and user has access
+    let session = CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow().get(&session_id).cloned()
+    }).ok_or("Session not found")?;
+    
+    if session.user_id != caller {
+        return Err("You don't have permission to access this session".to_string());
+    }
+    
+    // For now, return a simple progress update
+    // In a real implementation, you'd track actual progress
+    let progress = ProgressUpdate {
+        session_id: session_id.clone(),
+        user_id: caller.to_string(),
+        progress: ProgressData {
+            id: 1,
+            user_id: caller.to_string(),
+            session_id: session_id,
+            course_id: 1,
+            current_module_id: Some(1),
+            progress_percentage: 50.0,
+            last_activity: ic_cdk::api::time().to_string(),
+        }
+    };
+    
+    Ok(progress)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct ProgressUpdate {
+    session_id: String,
+    user_id: String,
+    progress: ProgressData,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+struct ProgressData {
+    id: u64,
+    user_id: String,
+    session_id: String,
+    course_id: u64,
+    current_module_id: Option<u64>,
+    progress_percentage: f64,
+    last_activity: String,
 }
 
 // --- Candid Generation ---
