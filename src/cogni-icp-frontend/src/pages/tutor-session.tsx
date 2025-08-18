@@ -171,7 +171,7 @@ const TutorSession: React.FC = () => {
 
       try {
       setIsValidatingTopic(true);
-      const validation = await tutorService.validateTopic(tutorId, debouncedTopic);
+      const validation = await tutorService.validateTopic(tutorId, debouncedTopic, backendActor);
         setTopicValidation(validation);
         setShowValidationMessage(true);
     } catch (err) {

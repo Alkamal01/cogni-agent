@@ -345,12 +345,36 @@ const tutorService = {
     }
   },
 
-  validateTopic: async (tutorId: string, topic: string): Promise<TopicValidation> => {
-    return {
-      is_relevant: true,
-      confidence: 0.8,
-      reasoning: 'Mock validation'
-    };
+  validateTopic: async (tutorId: string, topic: string, backendActor?: any): Promise<TopicValidation> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
+      }
+
+      // Call the backend to validate the topic
+      const validation = await backendActor.validate_topic(tutorId, topic);
+      console.log('Topic validation from backend:', validation);
+
+      if ('Err' in validation) {
+        throw new Error(validation.Err);
+      }
+
+      // Convert the validation to match the TopicValidation interface
+      return {
+        is_relevant: validation.Ok.is_relevant,
+        confidence: validation.Ok.confidence,
+        reasoning: validation.Ok.reasoning,
+        suggested_alternatives: validation.Ok.suggested_alternatives
+      };
+    } catch (error) {
+      console.error('Error validating topic:', error);
+      return {
+        is_relevant: false,
+        confidence: 0.0,
+        reasoning: 'Error validating topic',
+        suggested_alternatives: []
+      };
+    }
   },
 
   startSession: async (tutorId: string, topic: string): Promise<TutorSession> => {

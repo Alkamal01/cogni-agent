@@ -778,7 +778,17 @@ struct TopicValidation {
 }
 
 async fn call_icp_ai(prompt: &str) -> Result<String, String> {
+    // Use the real AI service with proper error handling
+    ic_cdk::println!("Calling AI with prompt: {}", prompt);
+    
     let text = ic_llm::prompt(Model::Llama3_1_8B, prompt).await;
+    ic_cdk::println!("AI response received, length: {}", text.len());
+    
+    if text.trim().is_empty() {
+        ic_cdk::println!("AI returned empty response");
+        return Err("AI service returned empty response".to_string());
+    }
+    
     Ok(text)
 }
 
@@ -795,7 +805,7 @@ async fn get_ai_topic_suggestions(tutor_id: String) -> Result<Vec<TopicSuggestio
             .map(|(_, t)| t.clone())
     }).ok_or("Tutor not found or you don't have permission to access it")?;
     
-    // Prepare the prompt for Groq API based on the Python backend logic
+    // Prepare a detailed prompt for better AI responses
     let prompt = format!(
         "You are an advisor helping suggest learning topics based on a tutor's expertise.
 
@@ -804,7 +814,7 @@ The tutor's teaching style is: {}
 The tutor's personality is: {}
 The tutor's description: {}
 
-Generate a list of 8-10 specific topic suggestions that:
+Generate a list of 6-8 specific topic suggestions that:
 1. Are directly related to the tutor's areas of expertise
 2. Vary in complexity (some beginner-friendly, some advanced)
 3. Cover different aspects of the tutor's knowledge domains
@@ -833,14 +843,23 @@ Example format:
         tutor.description
     );
     
-    // Call Groq API
-    let groq_response = call_icp_ai(&prompt).await?;
+    // Call AI service
+    let ai_response = call_icp_ai(&prompt).await?;
+    ic_cdk::println!("Raw AI response: {}", ai_response);
     
-    // Parse the JSON response
-    let suggestions: TopicSuggestionsResponse = serde_json::from_str(&groq_response)
-        .map_err(|e| format!("Failed to parse AI response: {}", e))?;
+    // Parse the JSON response - try direct array first, then wrapped object
+    let suggestions: Vec<TopicSuggestion> = match serde_json::from_str(&ai_response) {
+        Ok(direct_array) => direct_array,
+        Err(e) => {
+            ic_cdk::println!("Failed to parse as direct array: {}", e);
+            // Try parsing as wrapped object
+            let wrapped: TopicSuggestionsResponse = serde_json::from_str(&ai_response)
+                .map_err(|e| format!("Failed to parse AI response: {}", e))?;
+            wrapped.suggestions
+        }
+    };
     
-    Ok(suggestions.suggestions)
+    Ok(suggestions)
 }
 
 #[ic_cdk::update]
@@ -856,7 +875,7 @@ async fn validate_topic(tutor_id: String, topic: String) -> Result<TopicValidati
             .map(|(_, t)| t.clone())
     }).ok_or("Tutor not found or you don't have permission to access it")?;
     
-    // Prepare the prompt for topic validation
+    // Prepare a detailed validation prompt
     let prompt = format!(
         "You are an AI tutor assistant validating if a topic is relevant to a tutor's expertise.
 
