@@ -930,7 +930,7 @@ struct ChatMessage {
     has_audio: Option<bool>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType, Debug)]
 struct ChatSession {
     id: String,
     tutor_id: String,
@@ -1224,10 +1224,14 @@ async fn generate_course_modules(session_id: String) -> Result<Vec<String>, Stri
 async fn create_chat_session(tutor_id: String, topic: String) -> Result<String, String> {
     let caller = ic_cdk::caller();
     
+    ic_cdk::println!("Creating chat session for tutor: {}, topic: {}, caller: {}", tutor_id, topic, caller);
+    
     // Verify the tutor exists and user has access
     let tutor = TUTORS.with(|tutors| {
         tutors.borrow().iter().find(|(_, t)| t.public_id == tutor_id).map(|(_, t)| t.clone())
     }).ok_or("Tutor not found")?;
+    
+    ic_cdk::println!("Found tutor: {:?}", tutor);
     
     // Create a new chat session with a simple ID
     let session_id = format!("session_{}", ic_cdk::api::time());
@@ -1241,6 +1245,8 @@ async fn create_chat_session(tutor_id: String, topic: String) -> Result<String, 
         updated_at: ic_cdk::api::time(),
     };
     
+    ic_cdk::println!("Created session: {:?}", session);
+    
     // Store the session
     CHAT_SESSIONS.with(|sessions| {
         sessions.borrow_mut().insert(session_id.clone(), session);
@@ -1251,6 +1257,7 @@ async fn create_chat_session(tutor_id: String, topic: String) -> Result<String, 
         messages.borrow_mut().insert(session_id.clone(), Vec::new());
     });
     
+    ic_cdk::println!("Session stored successfully with ID: {}", session_id);
     Ok(session_id)
 }
 

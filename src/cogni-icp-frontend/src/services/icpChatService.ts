@@ -126,19 +126,19 @@ class ICPChatService {
       this.currentStatus = 'thinking';
       this.notifyStatusListeners();
 
-      // Add user message immediately to UI
-      const userChunk: TutorMessageChunk = {
-        content: content,
-        isComplete: true,
-        timestamp: new Date().toISOString(),
-        sender: 'user'
-      };
-      this.notifyMessageListeners(userChunk);
-
-      // Send message to the backend
+      // Send message to the backend first
       const result = await this.backendActor.send_tutor_message(this.sessionId, content);
       
       if ('Ok' in result) {
+        // Add user message to UI only after successful backend call
+        const userChunk: TutorMessageChunk = {
+          content: content,
+          isComplete: true,
+          timestamp: new Date().toISOString(),
+          sender: 'user'
+        };
+        this.notifyMessageListeners(userChunk);
+        
         this.currentStatus = 'responding';
         this.notifyStatusListeners();
         

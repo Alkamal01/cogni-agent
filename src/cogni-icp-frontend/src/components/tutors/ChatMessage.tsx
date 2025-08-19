@@ -41,9 +41,6 @@ const Avatar = ({ user, tutor }: { user?: any; tutor?: Tutor }) => {
   }
 
   if (user) {
-    // Debug: log user object to see what properties are available
-    console.log('User object in Avatar:', user);
-    
     // Try different possible name properties
     const userName = user.name || user.full_name || user.display_name || user.username || 
                    (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
@@ -56,10 +53,16 @@ const Avatar = ({ user, tutor }: { user?: any; tutor?: Tutor }) => {
             src={user.avatar_url}
             alt={userName}
             className="w-10 h-10 rounded-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.nextElementSibling?.classList.remove('hidden');
+            }}
           />
-        ) : (
-          getInitials(userName)
-        )}
+        ) : null}
+        <div className={`w-10 h-10 rounded-full bg-gray-500 flex items-center justify-center text-white text-sm font-semibold ${user.avatar_url ? 'hidden' : ''}`}>
+          {getInitials(userName)}
+        </div>
       </div>
     );
   }
