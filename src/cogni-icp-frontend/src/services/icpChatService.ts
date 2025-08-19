@@ -92,17 +92,9 @@ class ICPChatService {
         const messages = result.Ok;
         this.messageCount = messages.length;
         
-        // Emit existing messages
-        messages.forEach((msg: any) => {
-          const chunk: TutorMessageChunk = {
-            id: msg.id,
-            content: msg.content,
-            isComplete: true,
-            timestamp: msg.timestamp,
-            sender: msg.sender
-          };
-          this.notifyMessageListeners(chunk);
-        });
+        // Don't emit existing messages during initial load
+        // They should be loaded by the frontend component directly
+        console.log('ICPChatService: Loaded', messages.length, 'existing messages');
       }
     } catch (error) {
       console.error('ICPChatService: Error loading existing messages:', error);
