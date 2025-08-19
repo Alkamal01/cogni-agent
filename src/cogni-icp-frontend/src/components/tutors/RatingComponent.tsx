@@ -3,7 +3,6 @@ import { Star } from 'lucide-react';
 import { Button } from '../shared';
 import { TrashIcon } from './icons';
 import { TutorRating } from '../../services/tutorService';
-import api from '../../utils/apiClient';
 
 interface RatingComponentProps {
   tutorId: string;
@@ -16,51 +15,23 @@ const RatingComponent: React.FC<RatingComponentProps> = ({ tutorId, onRatingSubm
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // For now, ratings are not implemented in the ICP backend
+  // This prevents CORS errors from localhost API calls
   useEffect(() => {
-    const fetchRatings = async () => {
-      try {
-        const response = await api.get(`/api/tutors/${tutorId}/ratings`);
-        setRatings(response.data.ratings || []);
-        setUserRating(response.data.user_rating || null);
-      } catch (error) {
-        console.error('Error fetching ratings:', error);
-      }
-    };
-
-    fetchRatings();
+    // Initialize with empty ratings for now
+    setRatings([]);
+    setUserRating(null);
   }, [tutorId]);
 
   const handleSubmitRating = async (rating: number) => {
-    setIsSubmitting(true);
-    try {
-      const response = await api.post(`/api/tutors/${tutorId}/rate`, { rating });
-      setUserRating(response.data.rating);
-      onRatingSubmitted?.();
-      // Refresh ratings to get updated data
-      const refreshResponse = await api.get(`/api/tutors/${tutorId}/ratings`);
-      setRatings(refreshResponse.data.ratings || []);
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // TODO: Implement rating functionality when backend supports it
+    console.log('Rating functionality not yet implemented in ICP backend');
+    alert('Rating functionality will be available soon!');
   };
 
   const handleDeleteRating = async () => {
-    if (!userRating) return;
-    
-    setIsDeleting(true);
-    try {
-      await api.delete(`/api/tutors/${tutorId}/ratings/${userRating.id}`);
-      setUserRating(null);
-      // Refresh ratings to get updated data
-      const refreshResponse = await api.get(`/api/tutors/${tutorId}/ratings`);
-      setRatings(refreshResponse.data.ratings || []);
-    } catch (error) {
-      console.error('Error deleting rating:', error);
-    } finally {
-      setIsDeleting(false);
-    }
+    // TODO: Implement delete rating functionality when backend supports it
+    console.log('Delete rating functionality not yet implemented in ICP backend');
   };
 
   const averageRating = ratings.length > 0 
@@ -119,6 +90,11 @@ const RatingComponent: React.FC<RatingComponentProps> = ({ tutorId, onRatingSubm
             Remove
           </Button>
         )}
+      </div>
+      
+      {/* Info message about ratings */}
+      <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+        ⓘ Rating functionality will be available in the next update
       </div>
     </div>
   );

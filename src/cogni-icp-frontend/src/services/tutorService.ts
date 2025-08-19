@@ -226,19 +226,103 @@ const tutorService = {
     };
   },
 
-  getSession: async (sessionId: string): Promise<any> => {
-    // For now, return mock session data
-    return {
-      session: {
-        public_id: sessionId,
-        user_id: 'mock-user-id',
-        tutor_id: 'mock-tutor-id',
-        topic: 'Mock Topic',
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+  getSession: async (sessionId: string, backendActor?: any): Promise<any> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
       }
-    };
+
+      // Call the backend to get real session data
+      const result = await backendActor.get_chat_session(sessionId);
+      
+      if ('Err' in result) {
+        throw new Error(result.Err);
+      }
+
+      const sessionData = result.Ok;
+      
+      // Generate modules for this session
+      const moduleTitles = await tutorService.generateModules(sessionData.id, backendActor);
+      
+      // Create modules array with proper structure
+      const modules = moduleTitles.map((title, index) => ({
+        id: index + 1,
+        title: title,
+        description: `Module ${index + 1}: ${title}`,
+        content: `This module covers ${title.toLowerCase()}`,
+        duration: '30-45 minutes',
+        order: index + 1,
+        is_completed: false
+      }));
+      
+      // Convert the session data to match the expected format
+      return {
+        session: {
+          public_id: sessionData.id,
+          user_id: sessionData.user_id.toString(),
+          tutor_id: sessionData.tutor_id,
+          topic: sessionData.topic,
+          status: sessionData.status,
+          created_at: new Date(Number(sessionData.created_at) / 1000000).toISOString(),
+          updated_at: new Date(Number(sessionData.updated_at) / 1000000).toISOString()
+        },
+        course: {
+          id: 1,
+          name: `${sessionData.topic} Course`,
+          description: `Personalized AI tutoring session on ${sessionData.topic}`,
+          modules: modules
+        },
+        modules: modules,
+        progress: {
+          id: 1,
+          user_id: sessionData.user_id.toString(),
+          session_id: sessionData.id,
+          course_id: 1,
+          current_module_id: 1, // Start with first module
+          progress_percentage: 0, // Start at 0%
+          last_activity: new Date().toISOString()
+        },
+        messages: []
+      };
+    } catch (error) {
+      console.error('Error fetching session:', error);
+      throw error;
+    }
+  },
+
+  generateModules: async (sessionId: string, backendActor?: any): Promise<string[]> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
+      }
+
+      console.log('Generating modules for session:', sessionId);
+      const result = await backendActor.generate_course_modules(sessionId);
+      
+      if ('Err' in result) {
+        console.warn('AI module generation failed, using default modules:', result.Err);
+        // Return default modules if AI fails
+        return [
+          'Introduction to the Topic',
+          'Core Concepts',
+          'Practice Exercises',
+          'Advanced Applications',
+          'Review and Assessment'
+        ];
+      }
+
+      return result.Ok;
+    } catch (error) {
+      console.error('Error generating modules:', error);
+      // Return default modules on error
+      return [
+        'Introduction to the Topic',
+        'Core Concepts', 
+        'Practice Exercises',
+        'Advanced Applications',
+        'Review and Assessment'
+      ];
+    }
   },
 
   sendMessage: async (sessionId: string, message: string): Promise<TutorMessage> => {
@@ -377,16 +461,35 @@ const tutorService = {
     }
   },
 
-  startSession: async (tutorId: string, topic: string): Promise<TutorSession> => {
-    return {
-      public_id: 'mock-session-id',
-      user_id: 'mock-user-id',
-      tutor_id: tutorId,
-      topic: topic,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+  startSession: async (tutorId: string, topic: string, backendActor?: any): Promise<TutorSession> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor is not available');
+      }
+
+      // Call the backend to create a real session
+      const result = await backendActor.create_chat_session(tutorId, topic);
+      
+      if ('Err' in result) {
+        throw new Error(result.Err);
+      }
+
+      const sessionId = result.Ok;
+      
+      // Return the session data
+      return {
+        public_id: sessionId,
+        user_id: 'current-user', // This will be set by the backend
+        tutor_id: tutorId,
+        topic: topic,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw error;
+    }
   },
 
   deleteSession: async (sessionId: string): Promise<void> => {

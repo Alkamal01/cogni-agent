@@ -85,6 +85,9 @@ type Result_15 = variant { Ok : TopicValidation; Err : text };
 type Result_16 = variant { Ok : text; Err : text };
 type Result_17 = variant { Ok : vec ChatMessage; Err : text };
 type Result_18 = variant { Ok : ProgressUpdate; Err : text };
+type Result_19 = variant { Ok : text; Err : text };
+type Result_20 = variant { Ok : ChatSession; Err : text };
+type Result_21 = variant { Ok : vec text; Err : text };
 type TopicSuggestion = record {
     topic : text;
     description : text;
@@ -223,4 +226,7 @@ service : {
     send_tutor_message : (text, text) -> (Result_16);
     get_session_messages : (text) -> (Result_17) query;
     get_session_progress : (text) -> (Result_18) query;
+    create_chat_session : (text, text) -> (Result_19);
+    get_chat_session : (text) -> (Result_20) query;
+    generate_course_modules : (text) -> (Result_21);
 } 

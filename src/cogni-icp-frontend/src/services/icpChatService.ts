@@ -179,21 +179,22 @@ class ICPChatService {
       clearInterval(this.pollingInterval);
     }
     
-    this.pollingInterval = setInterval(async () => {
-      if (!this.isConnected || !this.sessionId || !this.backendActor) {
-        return;
-      }
-      
-      try {
-        // Poll for any updates (progress, etc.)
-        const result = await this.backendActor.get_session_progress(this.sessionId);
-        if ('Ok' in result) {
-          this.notifyProgressListeners(result.Ok);
-        }
-      } catch (error) {
-        // Ignore polling errors
-      }
-    }, 5000); // Poll every 5 seconds
+    // Temporarily disable progress polling to prevent unwanted updates
+    // this.pollingInterval = setInterval(async () => {
+    //   if (!this.isConnected || !this.sessionId || !this.backendActor) {
+    //     return;
+    //   }
+    //   
+    //   try {
+    //     // Poll for any updates (progress, etc.)
+    //     const result = await this.backendActor.get_session_progress(this.sessionId);
+    //     if ('Ok' in result) {
+    //       this.notifyProgressListeners(result.Ok);
+    //     }
+    //   } catch (error) {
+    //     // Ignore polling errors
+    //   }
+    // }, 5000); // Poll every 5 seconds
   }
 
   private stopPolling(): void {

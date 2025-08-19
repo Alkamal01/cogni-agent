@@ -105,11 +105,14 @@ const TutorSession: React.FC = () => {
     
       // Fetch tutor data
       const tutorData = await tutorService.getTutor(tutorId, backendActor);
+      if (!tutorData) {
+        throw new Error(`Tutor with ID ${tutorId} not found`);
+      }
       setTutor(tutorData);
 
       if (sessionId && sessionId !== 'undefined') {
         // Fetch session data
-        const sessionData = await tutorService.getSession(sessionId);
+        const sessionData = await tutorService.getSession(sessionId, backendActor);
         setSession(sessionData.session);
         setCourse(sessionData.course);
         setModules(sessionData.modules || []);
@@ -117,6 +120,11 @@ const TutorSession: React.FC = () => {
 
         // Load initial messages
         setMessages(sessionData.messages || []);
+        
+        // Connect to the chat service for this session
+        if (sessionData.session?.public_id) {
+          icpChatService.connect(sessionData.session.public_id);
+        }
       } else {
         // No active session, show topic list
         await fetchTutorSessions();
@@ -183,7 +191,7 @@ const TutorSession: React.FC = () => {
 
     try {
       setIsStartingSession(true);
-      const newSession = await tutorService.startSession(tutorId, topic);
+      const newSession = await tutorService.startSession(tutorId, topic, backendActor);
       navigate(`/tutors/${tutorId}/${newSession.public_id}`);
     } catch (err) {
       console.error('Error starting session:', err);

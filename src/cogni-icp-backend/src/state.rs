@@ -37,6 +37,7 @@ const USER_ACHIEVEMENT_MEMORY_ID: MemoryId = MemoryId::new(12);
 const TASK_MEMORY_ID: MemoryId = MemoryId::new(13);
 const USER_TASK_COMPLETION_MEMORY_ID: MemoryId = MemoryId::new(14);
 const MESSAGE_MEMORY_ID: MemoryId = MemoryId::new(15);
+const SESSION_MEMORY_ID: MemoryId = MemoryId::new(16);
 
 
 const ID_COUNTER_MEMORY_ID: MemoryId = MemoryId::new(20);
@@ -60,6 +61,7 @@ struct IdCounters {
     task: u64,
     user_task_completion: u64,
     message: u64,
+    session: u64,
 }
 
 impl Storable for IdCounters {
@@ -273,6 +275,11 @@ pub fn next_id(entity: &str) -> u64 {
                 current_counters.message += 1;
                 writer.set(current_counters).unwrap();
                 writer.get().message
+            }
+            "session" => {
+                current_counters.session += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().session
             }
             _ => panic!("Unknown entity type for ID generation"),
         }

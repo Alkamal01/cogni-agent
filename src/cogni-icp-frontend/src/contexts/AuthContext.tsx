@@ -4,6 +4,7 @@ import { Actor, Identity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { canisterId, createActor } from '../../../declarations/cogni-icp-backend';
 import type { User as BackendUser } from '../../../declarations/cogni-icp-backend/cogni-icp-backend.did';
+import icpChatService from '../services/icpChatService';
 
 // Helper function to convert BigInt values to strings for localStorage
 const convertBigIntToString = (obj: any): any => {
@@ -73,6 +74,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         agentOptions: { identity: anonymousIdentity.getIdentity() } 
       });
       setBackendActor(anonymousActor);
+      
+      // Initialize ICP chat service with anonymous actor
+      icpChatService.setBackendActor(anonymousActor);
       
       // Check for traditional auth first
       const storedUser = localStorage.getItem('user');
@@ -227,6 +231,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     setIdentity(identity);
     setBackendActor(actor);
+    
+    // Initialize ICP chat service with backend actor
+    icpChatService.setBackendActor(actor);
+    
     setIsAuthenticated(true);
 
     const userProfileResult = await actor.get_self() as [User] | [];

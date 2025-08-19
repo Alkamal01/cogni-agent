@@ -1078,12 +1078,130 @@ fn get_session_progress(session_id: String) -> Result<ProgressUpdate, String> {
             session_id: session_id,
             course_id: 1,
             current_module_id: Some(1),
-            progress_percentage: 50.0,
+            progress_percentage: 0.0, // Start at 0%
             last_activity: ic_cdk::api::time().to_string(),
         }
     };
     
     Ok(progress)
+}
+
+#[ic_cdk::query]
+fn get_chat_session(session_id: String) -> Result<ChatSession, String> {
+    let caller = ic_cdk::caller();
+    
+    // Get the session
+    let session = CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow().get(&session_id).cloned()
+    }).ok_or("Session not found")?;
+    
+    // Verify user has access to this session
+    if session.user_id != caller {
+        return Err("You don't have permission to access this session".to_string());
+    }
+    
+    Ok(session)
+}
+
+#[ic_cdk::update]
+async fn generate_course_modules(session_id: String) -> Result<Vec<String>, String> {
+    let caller = ic_cdk::caller();
+    
+    // Get the session
+    let session = CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow().get(&session_id).cloned()
+    }).ok_or("Session not found")?;
+    
+    // Verify user has access to this session
+    if session.user_id != caller {
+        return Err("You don't have permission to access this session".to_string());
+    }
+    
+    // Get tutor information
+    let tutor = TUTORS.with(|tutors| {
+        tutors.borrow().iter().find(|(_, t)| t.public_id == session.tutor_id).map(|(_, t)| t.clone())
+    }).ok_or("Tutor not found")?;
+    
+    // Create AI prompt for module generation
+    let prompt = format!(
+        "Generate 5 learning module titles for teaching '{}'. 
+        Tutor expertise: {}. Teaching style: {}. Personality: {}.
+        
+        Return only a JSON array of strings with module titles.
+        Example: [\"Introduction to Calculus\", \"Derivatives and Limits\", \"Integration Basics\", \"Applications\", \"Advanced Topics\"]",
+        session.topic,
+        tutor.expertise.join(", "),
+        tutor.teaching_style,
+        tutor.personality
+    );
+    
+    // Call AI to generate modules
+    let ai_response = call_icp_ai(&prompt).await?;
+    
+    // Parse the AI response - it might be wrapped in markdown or have extra text
+    let cleaned_response = ai_response
+        .lines()
+        .filter(|line| line.trim().starts_with('[') || line.trim().starts_with('"'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    let module_titles: Vec<String> = match serde_json::from_str(&cleaned_response) {
+        Ok(titles) => titles,
+        Err(_) => {
+            // Try to extract JSON from the response if it's wrapped in markdown
+            if let Some(start) = ai_response.find('[') {
+                if let Some(end) = ai_response.rfind(']') {
+                    let json_part = &ai_response[start..=end];
+                    serde_json::from_str(json_part)
+                        .map_err(|_| format!("Failed to parse AI response: {}", ai_response))?
+                } else {
+                    return Err(format!("Failed to parse AI response: {}", ai_response));
+                }
+            } else {
+                return Err(format!("Failed to parse AI response: {}", ai_response));
+            }
+        }
+    };
+    
+    if module_titles.is_empty() {
+        return Err("No valid modules generated".to_string());
+    }
+    
+    Ok(module_titles)
+}
+
+#[ic_cdk::update]
+async fn create_chat_session(tutor_id: String, topic: String) -> Result<String, String> {
+    let caller = ic_cdk::caller();
+    
+    // Verify the tutor exists and user has access
+    let tutor = TUTORS.with(|tutors| {
+        tutors.borrow().iter().find(|(_, t)| t.public_id == tutor_id).map(|(_, t)| t.clone())
+    }).ok_or("Tutor not found")?;
+    
+    // Create a new chat session with a simple ID
+    let session_id = format!("session_{}", ic_cdk::api::time());
+    let session = ChatSession {
+        id: session_id.clone(),
+        tutor_id: tutor_id.clone(),
+        user_id: caller,
+        topic: topic.clone(),
+        status: "active".to_string(),
+        created_at: ic_cdk::api::time(),
+        updated_at: ic_cdk::api::time(),
+    };
+    
+    // Store the session
+    CHAT_SESSIONS.with(|sessions| {
+        sessions.borrow_mut().insert(session_id.clone(), session);
+    });
+    
+    // Initialize empty messages for the session
+    CHAT_MESSAGES.with(|messages| {
+        messages.borrow_mut().insert(session_id.clone(), Vec::new());
+    });
+    
+    Ok(session_id)
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, candid::CandidType)]
