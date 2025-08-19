@@ -1090,16 +1090,22 @@ fn get_session_progress(session_id: String) -> Result<ProgressUpdate, String> {
 fn get_chat_session(session_id: String) -> Result<ChatSession, String> {
     let caller = ic_cdk::caller();
     
+    ic_cdk::println!("Getting chat session: {} for caller: {}", session_id, caller);
+    
     // Get the session
     let session = CHAT_SESSIONS.with(|sessions| {
-        sessions.borrow().get(&session_id).cloned()
+        let sessions = sessions.borrow();
+        ic_cdk::println!("Available sessions: {:?}", sessions.keys().collect::<Vec<_>>());
+        sessions.get(&session_id).cloned()
     }).ok_or("Session not found")?;
     
     // Verify user has access to this session
     if session.user_id != caller {
+        ic_cdk::println!("Access denied: session user {} != caller {}", session.user_id, caller);
         return Err("You don't have permission to access this session".to_string());
     }
     
+    ic_cdk::println!("Successfully retrieved session: {:?}", session);
     Ok(session)
 }
 
@@ -1122,13 +1128,22 @@ async fn generate_course_modules(session_id: String) -> Result<Vec<String>, Stri
         tutors.borrow().iter().find(|(_, t)| t.public_id == session.tutor_id).map(|(_, t)| t.clone())
     }).ok_or("Tutor not found")?;
     
+    ic_cdk::println!("Generating modules for topic: {}", session.topic);
+    ic_cdk::println!("Tutor expertise: {}", tutor.expertise.join(", "));
+    
     // Create AI prompt for module generation
     let prompt = format!(
         "Generate 5 learning module titles for teaching '{}'. 
         Tutor expertise: {}. Teaching style: {}. Personality: {}.
         
-        Return only a JSON array of strings with module titles.
-        Example: [\"Introduction to Calculus\", \"Derivatives and Limits\", \"Integration Basics\", \"Applications\", \"Advanced Topics\"]",
+        Return ONLY a JSON array of strings with module titles.
+        Example: [\"Introduction to Calculus\", \"Derivatives and Limits\", \"Integration Basics\", \"Applications\", \"Advanced Topics\"]
+        
+        Make sure the modules are:
+        1. Relevant to the topic
+        2. Progressive in difficulty
+        3. Practical and actionable
+        4. Aligned with the tutor's expertise and teaching style",
         session.topic,
         tutor.expertise.join(", "),
         tutor.teaching_style,
@@ -1137,36 +1152,71 @@ async fn generate_course_modules(session_id: String) -> Result<Vec<String>, Stri
     
     // Call AI to generate modules
     let ai_response = call_icp_ai(&prompt).await?;
+    ic_cdk::println!("Raw AI response for modules: {}", ai_response);
     
-    // Parse the AI response - it might be wrapped in markdown or have extra text
-    let cleaned_response = ai_response
-        .lines()
-        .filter(|line| line.trim().starts_with('[') || line.trim().starts_with('"'))
-        .collect::<Vec<_>>()
-        .join("\n");
-    
-    let module_titles: Vec<String> = match serde_json::from_str(&cleaned_response) {
-        Ok(titles) => titles,
-        Err(_) => {
-            // Try to extract JSON from the response if it's wrapped in markdown
-            if let Some(start) = ai_response.find('[') {
+    // Try multiple parsing strategies
+    let module_titles: Vec<String> = {
+        // Strategy 1: Direct JSON array
+        if let Ok(titles) = serde_json::from_str::<Vec<String>>(&ai_response) {
+            ic_cdk::println!("Successfully parsed as direct JSON array");
+            titles
+        }
+        // Strategy 2: Clean the response and try again
+        else {
+            let cleaned_response = ai_response
+                .lines()
+                .filter(|line| {
+                    let trimmed = line.trim();
+                    trimmed.starts_with('[') || trimmed.starts_with('"') || trimmed.contains('"')
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            
+            ic_cdk::println!("Cleaned response: {}", cleaned_response);
+            
+            if let Ok(titles) = serde_json::from_str::<Vec<String>>(&cleaned_response) {
+                ic_cdk::println!("Successfully parsed cleaned response");
+                titles
+            }
+            // Strategy 3: Extract JSON from markdown or other wrappers
+            else if let Some(start) = ai_response.find('[') {
                 if let Some(end) = ai_response.rfind(']') {
                     let json_part = &ai_response[start..=end];
-                    serde_json::from_str(json_part)
-                        .map_err(|_| format!("Failed to parse AI response: {}", ai_response))?
+                    ic_cdk::println!("Extracted JSON part: {}", json_part);
+                    serde_json::from_str::<Vec<String>>(json_part)
+                        .map_err(|e| format!("Failed to parse extracted JSON: {}", e))?
                 } else {
-                    return Err(format!("Failed to parse AI response: {}", ai_response));
+                    return Err(format!("Could not find closing bracket in AI response: {}", ai_response));
                 }
-            } else {
-                return Err(format!("Failed to parse AI response: {}", ai_response));
+            }
+            // Strategy 4: Try to extract individual strings
+            else {
+                let mut titles = Vec::new();
+                let lines: Vec<&str> = ai_response.lines().collect();
+                for line in lines {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with('"') && trimmed.ends_with('"') {
+                        if let Ok(title) = serde_json::from_str::<String>(trimmed) {
+                            titles.push(title);
+                        }
+                    }
+                }
+                
+                if titles.is_empty() {
+                    return Err(format!("Could not extract any valid module titles from AI response: {}", ai_response));
+                }
+                
+                ic_cdk::println!("Extracted {} titles from individual lines", titles.len());
+                titles
             }
         }
     };
     
     if module_titles.is_empty() {
-        return Err("No valid modules generated".to_string());
+        return Err("No valid modules generated from AI response".to_string());
     }
     
+    ic_cdk::println!("Successfully generated {} modules: {:?}", module_titles.len(), module_titles);
     Ok(module_titles)
 }
 

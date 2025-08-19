@@ -110,6 +110,11 @@ const TutorSession: React.FC = () => {
       }
       setTutor(tutorData);
 
+      // Set backend actor for chat service
+      if (backendActor) {
+        icpChatService.setBackendActor(backendActor);
+      }
+
       if (sessionId && sessionId !== 'undefined') {
         // Fetch session data
         const sessionData = await tutorService.getSession(sessionId, backendActor);
@@ -123,7 +128,23 @@ const TutorSession: React.FC = () => {
         
         // Connect to the chat service for this session
         if (sessionData.session?.public_id) {
-          icpChatService.connect(sessionData.session.public_id);
+          const connected = await icpChatService.connect(sessionData.session.public_id);
+          if (connected) {
+            setIsConnected(true);
+            
+            // Set up message listeners
+            icpChatService.onMessage((chunk: TutorMessageChunk) => {
+              setMessages(prev => [...prev, chunk]);
+            });
+            
+            // Set up status listeners
+            icpChatService.onStatus((status: 'idle' | 'thinking' | 'responding' | 'error') => {
+              setTutorStatus(status);
+            });
+          } else {
+            console.error('Failed to connect to chat service');
+            setIsError(true);
+          }
         }
       } else {
         // No active session, show topic list
@@ -306,6 +327,11 @@ const TutorSession: React.FC = () => {
   // Effects
   useEffect(() => {
     initializeSession();
+    
+    // Cleanup function
+    return () => {
+      icpChatService.disconnect();
+    };
   }, [tutorId, sessionId]);
 
   useEffect(() => {

@@ -242,7 +242,20 @@ const tutorService = {
       const sessionData = result.Ok;
       
       // Generate modules for this session
-      const moduleTitles = await tutorService.generateModules(sessionData.id, backendActor);
+      let moduleTitles: string[] = [];
+      try {
+        moduleTitles = await tutorService.generateModules(sessionData.id, backendActor);
+      } catch (moduleError) {
+        console.error('Failed to generate AI modules, using fallback:', moduleError);
+        // Use fallback modules if AI generation fails
+        moduleTitles = [
+          'Introduction to the Topic',
+          'Core Concepts',
+          'Practice Exercises',
+          'Advanced Applications',
+          'Review and Assessment'
+        ];
+      }
       
       // Create modules array with proper structure
       const modules = moduleTitles.map((title, index) => ({
@@ -300,28 +313,15 @@ const tutorService = {
       const result = await backendActor.generate_course_modules(sessionId);
       
       if ('Err' in result) {
-        console.warn('AI module generation failed, using default modules:', result.Err);
-        // Return default modules if AI fails
-        return [
-          'Introduction to the Topic',
-          'Core Concepts',
-          'Practice Exercises',
-          'Advanced Applications',
-          'Review and Assessment'
-        ];
+        console.error('AI module generation failed:', result.Err);
+        throw new Error(`AI module generation failed: ${result.Err}`);
       }
 
+      console.log('Successfully generated modules:', result.Ok);
       return result.Ok;
     } catch (error) {
       console.error('Error generating modules:', error);
-      // Return default modules on error
-      return [
-        'Introduction to the Topic',
-        'Core Concepts', 
-        'Practice Exercises',
-        'Advanced Applications',
-        'Review and Assessment'
-      ];
+      throw error; // Re-throw the error instead of falling back to defaults
     }
   },
 

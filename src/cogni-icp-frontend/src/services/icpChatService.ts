@@ -44,6 +44,7 @@ class ICPChatService {
   private isConnected = false;
   private pollingInterval: NodeJS.Timeout | null = null;
   private lastMessageId: string | null = null;
+  private messageCount: number = 0;
 
   constructor() {
     // Initialize the service
@@ -51,6 +52,7 @@ class ICPChatService {
 
   public setBackendActor(actor: any): void {
     this.backendActor = actor;
+    console.log('ICPChatService: Backend actor set');
   }
 
   public async connect(sessionId: string): Promise<boolean> {
@@ -63,8 +65,12 @@ class ICPChatService {
       this.sessionId = sessionId;
       this.isConnected = true;
       this.currentStatus = 'idle';
+      this.messageCount = 0;
       
       console.log('ICPChatService: Connected to ICP backend for session:', sessionId);
+      
+      // Load existing messages
+      await this.loadExistingMessages();
       
       // Start polling for new messages
       this.startPolling();
@@ -74,6 +80,32 @@ class ICPChatService {
       console.error('ICPChatService: Connection failed:', error);
       this.currentStatus = 'error';
       return false;
+    }
+  }
+
+  private async loadExistingMessages(): Promise<void> {
+    if (!this.backendActor || !this.sessionId) return;
+
+    try {
+      const result = await this.backendActor.get_session_messages(this.sessionId);
+      if ('Ok' in result) {
+        const messages = result.Ok;
+        this.messageCount = messages.length;
+        
+        // Emit existing messages
+        messages.forEach((msg: any) => {
+          const chunk: TutorMessageChunk = {
+            id: msg.id,
+            content: msg.content,
+            isComplete: true,
+            timestamp: msg.timestamp,
+            sender: msg.sender
+          };
+          this.notifyMessageListeners(chunk);
+        });
+      }
+    } catch (error) {
+      console.error('ICPChatService: Error loading existing messages:', error);
     }
   }
 
@@ -93,6 +125,15 @@ class ICPChatService {
 
       this.currentStatus = 'thinking';
       this.notifyStatusListeners();
+
+      // Add user message immediately to UI
+      const userChunk: TutorMessageChunk = {
+        content: content,
+        isComplete: true,
+        timestamp: new Date().toISOString(),
+        sender: 'user'
+      };
+      this.notifyMessageListeners(userChunk);
 
       // Send message to the backend
       const result = await this.backendActor.send_tutor_message(this.sessionId, content);
@@ -127,6 +168,7 @@ class ICPChatService {
     
     const poll = async () => {
       if (attempts >= maxAttempts) {
+        console.error('ICPChatService: Polling timeout - no response received');
         this.currentStatus = 'error';
         this.notifyStatusListeners();
         return;
@@ -137,29 +179,33 @@ class ICPChatService {
         
         if ('Ok' in result) {
           const messages = result.Ok;
-          const tutorMessages = messages.filter((msg: any) => msg.sender === 'tutor');
           
-          if (tutorMessages.length > 0) {
-            const latestMessage = tutorMessages[tutorMessages.length - 1];
+          // Check if we have new messages
+          if (messages.length > this.messageCount) {
+            const newMessages = messages.slice(this.messageCount);
+            this.messageCount = messages.length;
             
-            if (latestMessage.id !== this.lastMessageId) {
-              this.lastMessageId = latestMessage.id;
-              
-              // Emit the message chunk
+            // Emit new messages
+            newMessages.forEach((msg: any) => {
               const chunk: TutorMessageChunk = {
-                id: latestMessage.id,
-                content: latestMessage.content,
+                id: msg.id,
+                content: msg.content,
                 isComplete: true,
-                timestamp: latestMessage.timestamp,
-                sender: 'tutor'
+                timestamp: msg.timestamp,
+                sender: msg.sender
               };
-              
               this.notifyMessageListeners(chunk);
-              this.currentStatus = 'idle';
-              this.notifyStatusListeners();
-              return;
-            }
+            });
+            
+            this.currentStatus = 'idle';
+            this.notifyStatusListeners();
+            return;
           }
+        } else {
+          console.error('ICPChatService: Error getting messages:', result.Err);
+          this.currentStatus = 'error';
+          this.notifyStatusListeners();
+          return;
         }
         
         attempts++;
@@ -179,22 +225,40 @@ class ICPChatService {
       clearInterval(this.pollingInterval);
     }
     
-    // Temporarily disable progress polling to prevent unwanted updates
-    // this.pollingInterval = setInterval(async () => {
-    //   if (!this.isConnected || !this.sessionId || !this.backendActor) {
-    //     return;
-    //   }
-    //   
-    //   try {
-    //     // Poll for any updates (progress, etc.)
-    //     const result = await this.backendActor.get_session_progress(this.sessionId);
-    //     if ('Ok' in result) {
-    //       this.notifyProgressListeners(result.Ok);
-    //     }
-    //   } catch (error) {
-    //     // Ignore polling errors
-    //   }
-    // }, 5000); // Poll every 5 seconds
+    // Poll for new messages every 3 seconds
+    this.pollingInterval = setInterval(async () => {
+      if (!this.isConnected || !this.sessionId || !this.backendActor) {
+        return;
+      }
+      
+      try {
+        const result = await this.backendActor.get_session_messages(this.sessionId);
+        if ('Ok' in result) {
+          const messages = result.Ok;
+          
+          // Check if we have new messages
+          if (messages.length > this.messageCount) {
+            const newMessages = messages.slice(this.messageCount);
+            this.messageCount = messages.length;
+            
+            // Emit new messages
+            newMessages.forEach((msg: any) => {
+              const chunk: TutorMessageChunk = {
+                id: msg.id,
+                content: msg.content,
+                isComplete: true,
+                timestamp: msg.timestamp,
+                sender: msg.sender
+              };
+              this.notifyMessageListeners(chunk);
+            });
+          }
+        }
+      } catch (error) {
+        // Ignore polling errors for background polling
+        console.debug('ICPChatService: Background polling error (ignored):', error);
+      }
+    }, 3000); // Poll every 3 seconds
   }
 
   private stopPolling(): void {
