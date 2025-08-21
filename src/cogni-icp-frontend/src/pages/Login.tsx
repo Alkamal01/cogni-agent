@@ -69,6 +69,7 @@ const Login = () => {
     }
   };
 
+  
   // Handle Internet Identity login
   const handleInternetIdentityLogin = async () => {
     try {

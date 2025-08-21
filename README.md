@@ -1,74 +1,33 @@
-# CogniEdufy: AI-Powered Learning Platform on Internet Computer
+# `cogni-icp`
 
-[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
-[![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
-[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
-[![Internet Computer](https://img.shields.io/badge/Internet%20Computer-DFX-blue.svg)](https://internetcomputer.org/)
+Welcome to your new `cogni-icp` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
 
-## 🎓 Overview
+To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
-CogniEdufy is a revolutionary AI-powered educational platform built on the Internet Computer blockchain. It combines **Agentic AI** for super personalization, collaborative learning, and blockchain technology to create adaptive learning experiences that evolve with each student's unique needs and learning patterns.
+To learn more before you start working with `cogni-icp`, see the following documentation available online:
 
-### 🌟 Key Features
+- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
+- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
+- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
+- [ic-cdk](https://docs.rs/ic-cdk)
+- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
+- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
 
-- **🤖 Agentic AI Tutors**: Super personalized AI tutors that learn and adapt to your unique learning patterns
-- **🎧 Multi-Modal Learning**: Chat, Audio, and Video (in progress) learning methods
-- **👥 Study Groups**: Collaborative learning with real-time group sessions
-- **📚 Learning Paths**: Structured educational journeys with progress tracking
-- **🏆 Gamification**: Achievement system with rewards and progress milestones
-- **🔗 Social Learning**: Connect with peers, share resources, and learn together
-- **💳 Blockchain Integration**: Sui blockchain integration for secure transactions
-- **📊 Analytics**: Detailed learning analytics and progress insights
-- **🎨 Modern UI**: Beautiful, responsive interface with dark/light themes
+If you want to start working on your project right away, you might want to try the following commands:
 
-## 🏗️ Architecture
+```bash
+cd cogni-icp/
+dfx help
+dfx canister --help
+```
 
-### Backend (Rust Canister)
-- **Language**: Rust with Internet Computer SDK
-- **Storage**: Stable memory structures for persistent data
-- **Authentication**: Internet Identity + Traditional email/password login
-- **AI Integration**: Agentic AI with LLM-powered tutoring system
-- **Blockchain**: Sui integration for payments and credentials
+## Running the project locally
 
-### Frontend (React + TypeScript)
-- **Framework**: React 18 with TypeScript
-- **Styling**: Tailwind CSS with custom components
-- **State Management**: React Context + TanStack Query
-- **Routing**: React Router v6
-- **Animations**: Framer Motion + GSAP
-- **Charts**: Chart.js + Recharts for analytics
+If you want to test your project locally, you can use the following commands:
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v16 or higher)
-- [DFX](https://internetcomputer.org/docs/current/developer-docs/setup/install/) (Internet Computer SDK)
-- [Rust](https://www.rust-lang.org/tools/install) (for backend development)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd cogni-edufy
-   ```
-
-2. **Install dependencies**
-   ```bash
-   # Install frontend dependencies
-   cd src/cogni-icp-frontend
-   npm install
-   
-   # Install backend dependencies
-   cd ../../src/cogni-icp-backend
-   cargo build
-   ```
-
-3. **Start the local Internet Computer replica**
-   ```bash
-   dfx start --background
-   ```
+```bash
+# Starts the replica, running in the background
+dfx start --background
 
 4. **Deploy the canisters**
    ```bash
