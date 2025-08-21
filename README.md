@@ -1,61 +1,255 @@
-# `cogni-icp`
+# CogniEdufy: AI-Powered Learning Platform on Internet Computer
 
-Welcome to your new `cogni-icp` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
+[![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
+[![Internet Computer](https://img.shields.io/badge/Internet%20Computer-DFX-blue.svg)](https://internetcomputer.org/)
 
-To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
+## 🎓 Overview
 
-To learn more before you start working with `cogni-icp`, see the following documentation available online:
+CogniEdufy is a revolutionary AI-powered educational platform built on the Internet Computer blockchain. It combines **Agentic AI** for super personalization, collaborative learning, and blockchain technology to create adaptive learning experiences that evolve with each student's unique needs and learning patterns.
 
-- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
-- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
-- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
-- [ic-cdk](https://docs.rs/ic-cdk)
-- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
-- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
+### 🌟 Key Features
 
-If you want to start working on your project right away, you might want to try the following commands:
+- **🤖 Agentic AI Tutors**: Super personalized AI tutors that learn and adapt to your unique learning patterns
+- **🎧 Multi-Modal Learning**: Chat, Audio, and Video (in progress) learning methods
+- **👥 Study Groups**: Collaborative learning with real-time group sessions
+- **📚 Learning Paths**: Structured educational journeys with progress tracking
+- **🏆 Gamification**: Achievement system with rewards and progress milestones
+- **🔗 Social Learning**: Connect with peers, share resources, and learn together
+- **💳 Blockchain Integration**: Sui blockchain integration for secure transactions
+- **📊 Analytics**: Detailed learning analytics and progress insights
+- **🎨 Modern UI**: Beautiful, responsive interface with dark/light themes
 
-```bash
-cd cogni-icp/
-dfx help
-dfx canister --help
+## 🏗️ Architecture
+
+### Backend (Rust Canister)
+- **Language**: Rust with Internet Computer SDK
+- **Storage**: Stable memory structures for persistent data
+- **Authentication**: Internet Identity + Traditional email/password login
+- **AI Integration**: Agentic AI with LLM-powered tutoring system
+- **Blockchain**: Sui integration for payments and credentials
+
+### Frontend (React + TypeScript)
+- **Framework**: React 18 with TypeScript
+- **Styling**: Tailwind CSS with custom components
+- **State Management**: React Context + TanStack Query
+- **Routing**: React Router v6
+- **Animations**: Framer Motion + GSAP
+- **Charts**: Chart.js + Recharts for analytics
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [DFX](https://internetcomputer.org/docs/current/developer-docs/setup/install/) (Internet Computer SDK)
+- [Rust](https://www.rust-lang.org/tools/install) (for backend development)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd cogni-edufy
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install frontend dependencies
+   cd src/cogni-icp-frontend
+   npm install
+   
+   # Install backend dependencies
+   cd ../../src/cogni-icp-backend
+   cargo build
+   ```
+
+3. **Start the local Internet Computer replica**
+   ```bash
+   dfx start --background
+   ```
+
+4. **Deploy the canisters**
+   ```bash
+   dfx deploy
+   ```
+
+5. **Start the development server**
+   ```bash
+   cd src/cogni-icp-frontend
+   npm start
+   ```
+
+The application will be available at:
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:4943`
+
+## 📁 Project Structure
+
+```
+cogni-edufy/
+├── src/
+│   ├── cogni-icp-backend/          # Rust backend canister
+│   │   ├── src/
+│   │   │   ├── models/            # Data models
+│   │   │   │   ├── user.rs        # User management
+│   │   │   │   ├── tutor.rs       # Agentic AI tutor system
+│   │   │   │   ├── study_group/   # Collaborative learning
+│   │   │   │   ├── gamification.rs # Achievement system
+│   │   │   │   └── billing.rs     # Subscription management
+│   │   │   ├── state.rs           # Canister state management
+│   │   │   └── lib.rs             # Main canister logic
+│   │   └── Cargo.toml
+│   └── cogni-icp-frontend/        # React frontend
+│       ├── src/
+│       │   ├── components/        # Reusable UI components
+│       │   │   ├── auth/          # Authentication components
+│       │   │   ├── groups/        # Study group components
+│       │   │   ├── tutors/        # AI tutor interface
+│       │   │   ├── landing/       # Marketing pages
+│       │   │   └── shared/        # Common components
+│       │   ├── pages/             # Page components
+│       │   ├── contexts/          # React contexts
+│       │   ├── services/          # API services
+│       │   └── hooks/             # Custom React hooks
+│       └── package.json
+├── dfx.json                        # DFX configuration
+└── package.json                    # Root package.json
 ```
 
-## Running the project locally
+## 🎯 Core Features
 
-If you want to test your project locally, you can use the following commands:
+### Agentic AI-Powered Tutoring
+- **Super Personalization**: Agentic AI that learns and adapts to your unique learning patterns
+- **Multi-Modal Learning**: Chat, Audio, and Video (in progress) learning methods
+- **Real-time Chat**: Interactive conversations with AI tutors
+- **Knowledge Base**: Upload custom materials for specialized tutoring
+- **Progress Tracking**: Monitor learning progress and achievements
+
+### Collaborative Learning
+- **Study Groups**: Create and join study groups
+- **Real-time Collaboration**: Live group sessions with shared resources
+- **Discussion Forums**: Engage in topic-based discussions
+- **Resource Sharing**: Share study materials and notes
+- **Polls & Surveys**: Interactive group decision-making
+
+### Learning Management
+- **Learning Paths**: Structured educational journeys
+- **Progress Analytics**: Detailed insights into learning patterns
+- **Achievement System**: Gamified learning with badges and rewards
+- **Goal Setting**: Set and track learning objectives
+
+### Social Features
+- **User Connections**: Connect with other learners
+- **Profile Management**: Customizable user profiles
+- **Activity Feed**: Track learning activities and achievements
+- **Recommendations**: AI-powered study partner suggestions
+
+## 🔧 Development
+
+### Backend Development
+
+The backend is built using Rust and the Internet Computer SDK. Key components include:
+
+- **Data Models**: Comprehensive data structures for all application features
+- **State Management**: Efficient memory management using stable structures
+- **API Endpoints**: Candid interface for frontend communication
+- **Agentic AI Integration**: Advanced LLM-powered tutoring with learning adaptation
+- **Multi-Modal Support**: Chat, audio, and video processing capabilities
+
+### Frontend Development
+
+The frontend is a modern React application with TypeScript:
+
+- **Component Architecture**: Modular, reusable components
+- **State Management**: Context API for global state
+- **Routing**: Client-side routing with React Router
+- **Styling**: Tailwind CSS with custom design system
+
+### Available Scripts
 
 ```bash
-# Starts the replica, running in the background
+# Development
+npm start                    # Start development server
+npm run build               # Build for production
+npm test                    # Run tests
+
+# DFX Commands
+dfx start --background      # Start local replica
+dfx deploy                  # Deploy canisters
+dfx generate                # Generate Candid interfaces
+```
+
+## 🔐 Authentication
+
+CogniEdufy offers multiple authentication options for maximum accessibility:
+
+- **Internet Identity**: Native IC blockchain-based authentication
+- **Traditional Login**: Email/password authentication for familiar user experience
+- **Principal-based**: Secure user identification on the blockchain
+- **Multi-device**: Access from multiple devices securely
+- **Flexible Access**: Choose your preferred authentication method
+
+## 💰 Billing & Subscriptions
+
+The platform includes a comprehensive billing system:
+
+- **Subscription Plans**: Multiple tiers for different user needs
+- **Payment Processing**: Secure payment handling
+- **Usage Tracking**: Monitor feature usage and limits
+- **Billing Analytics**: Detailed financial reporting
+
+## 🎨 UI/UX Features
+
+- **Responsive Design**: Works seamlessly across all devices
+- **Dark/Light Themes**: User preference support
+- **Smooth Animations**: Engaging user experience
+- **Accessibility**: WCAG compliant design
+- **Modern Interface**: Clean, intuitive design
+
+## 🚀 Deployment
+
+### Local Development
+```bash
 dfx start --background
-
-# Deploys your canisters to the replica and generates your candid interface
 dfx deploy
-```
-
-Once the job completes, your application will be available at `http://localhost:4943?canisterId={asset_canister_id}`.
-
-If you have made changes to your backend canister, you can generate a new candid interface with
-
-```bash
-npm run generate
-```
-
-at any time. This is recommended before starting the frontend development server, and will be run automatically any time you run `dfx deploy`.
-
-If you are making frontend changes, you can start a development server with
-
-```bash
 npm start
 ```
 
-Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
+### Production Deployment
+```bash
+dfx deploy --network ic
+```
 
-### Note on frontend environment variables
+## 🤝 Contributing
 
-If you are hosting frontend code somewhere without using DFX, you may need to make one of the following adjustments to ensure your project does not fetch the root key in production:
+We welcome contributions! Please see our contributing guidelines:
 
-- set`DFX_NETWORK` to `ic` if you are using Webpack
-- use your own preferred method to replace `process.env.DFX_NETWORK` in the autogenerated declarations
-  - Setting `canisters -> {asset_canister_id} -> declarations -> env_override to a string` in `dfx.json` will replace `process.env.DFX_NETWORK` with the string in the autogenerated declarations
-- Write your own `createActor` constructor
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Links
+
+- [Internet Computer Documentation](https://internetcomputer.org/docs)
+- [DFX Documentation](https://internetcomputer.org/docs/current/developer-docs/setup/install/)
+- [Rust Documentation](https://doc.rust-lang.org/)
+- [React Documentation](https://reactjs.org/docs/)
+
+## 📞 Support
+
+For support and questions:
+- Create an issue in the repository
+- Join our community discussions
+- Contact the development team
+
+---
+
+**Built with ❤️ on the Internet Computer**
