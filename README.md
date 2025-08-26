@@ -23,7 +23,7 @@ CogniEdufy is a revolutionary AI-powered educational platform built on the Inter
 
 ## 🏗️ Architecture
 
-![CogniEdufy Architecture](Architecture.png)
+![CogniEdufy Architecture](Architechture.png)
 
 ### Backend (Rust Canister)
 - **Language**: Rust with Internet Computer SDK
