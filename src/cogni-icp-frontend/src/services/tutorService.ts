@@ -1,5 +1,7 @@
 import canisterService from './canisterService';
 import { TutorFormData } from '../components/tutors/TutorFormModal';
+import { groqService } from './groqService';
+import { pythonBackend } from './pythonBackendService';
 
 // Interfaces
 export interface Tutor {
@@ -97,6 +99,48 @@ export interface TopicValidation {
   suggested_alternatives?: string[];
 }
 
+export interface CourseOutline {
+  title: string;
+  description: string;
+  learning_objectives: string[];
+  estimated_duration: string;
+  difficulty_level: string;
+  modules: CourseModule[];
+}
+
+export interface ComprehensionAnalysis {
+  comprehension_score: number;
+  difficulty_adjustment: string;
+  timestamp: string;
+}
+
+export interface LearningMetrics {
+  id: number;
+  user_id: string;
+  session_id: number;
+  date: string;
+  time_spent_minutes: number;
+  messages_sent: number;
+  comprehension_scores: Record<string, number>;
+  difficulty_adjustments: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModuleCompletion {
+  id: number;
+  user_id: string;
+  module_id: number;
+  completed: boolean;
+  completion_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Simple cache for tutor data to prevent redundant API calls
+const tutorCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const tutorService = {
   // Tutor Management
   getAllTutors: async (backendActor?: any): Promise<Tutor[]> => {
@@ -135,6 +179,13 @@ const tutorService = {
 
   getTutor: async (tutorId: string, backendActor?: any): Promise<Tutor> => {
     try {
+      // Check cache first
+      const cached = tutorCache.get(tutorId);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        console.log('Using cached tutor data for:', tutorId);
+        return cached.data;
+      }
+
       const result = await canisterService.getTutor(tutorId, backendActor);
       
       // Convert the result to match the Tutor interface
@@ -144,7 +195,7 @@ const tutorService = {
         return new Date(millis).toISOString();
       };
       
-      return {
+      const tutorData = {
         id: result.id,
         public_id: result.public_id,
         name: result.name,
@@ -160,6 +211,11 @@ const tutorService = {
         created_at: convertNanosecondsToDate(result.created_at),
         updated_at: convertNanosecondsToDate(result.updated_at)
       };
+
+      // Cache the tutor data
+      tutorCache.set(tutorId, { data: tutorData, timestamp: Date.now() });
+      
+      return tutorData;
     } catch (error) {
       console.error('Error fetching tutor:', error);
       throw error;
@@ -228,74 +284,88 @@ const tutorService = {
 
   getSession: async (sessionId: string, backendActor?: any): Promise<any> => {
     try {
-      if (!backendActor) {
-        throw new Error('Backend actor is not available');
+      // Get session from localStorage (frontend-only approach)
+      const sessions = JSON.parse(localStorage.getItem('tutor_sessions') || '[]');
+      const sessionData = sessions.find((s: any) => s.public_id === sessionId);
+      
+      if (!sessionData) {
+        throw new Error(`Session ${sessionId} not found`);
       }
 
-      // Call the backend to get real session data
-      const result = await backendActor.get_chat_session(sessionId);
+      // Get AI-generated course outline from localStorage
+      const courseOutline = JSON.parse(localStorage.getItem(`course_outline_${sessionId}`) || 'null');
       
-      if ('Err' in result) {
-        throw new Error(result.Err);
-      }
-
-      const sessionData = result.Ok;
+      let modules: CourseModule[] = [];
       
-      // Generate modules for this session
-      let moduleTitles: string[] = [];
-      try {
-        moduleTitles = await tutorService.generateModules(sessionData.id, backendActor);
-      } catch (moduleError) {
-        console.error('Failed to generate AI modules, using fallback:', moduleError);
-        // Use fallback modules if AI generation fails
-        moduleTitles = [
+      if (courseOutline && courseOutline.modules) {
+        // Use AI-generated modules
+        modules = courseOutline.modules.map((module: any, index: number) => ({
+          id: module.id || index + 1,
+          course_id: module.course_id || 1,
+          title: module.title,
+          description: module.description,
+          order: module.order || index + 1,
+          content: module.content || '',
+          status: module.status || 'pending'
+        }));
+        console.log('Using AI-generated modules:', modules);
+      } else {
+        // Fallback to basic modules if no AI outline exists
+        const fallbackModules = [
           'Introduction to the Topic',
-          'Core Concepts',
+          'Core Concepts', 
           'Practice Exercises',
           'Advanced Applications',
           'Review and Assessment'
         ];
+        
+        modules = fallbackModules.map((title, index) => ({
+          id: index + 1,
+          course_id: 1,
+          title: title,
+          description: `Module ${index + 1}: ${title}`,
+          order: index + 1,
+          content: `This module covers ${title.toLowerCase()}`,
+          status: 'pending'
+        }));
+        console.log('Using fallback modules:', modules);
       }
       
-      // Create modules array with proper structure
-      const modules = moduleTitles.map((title, index) => ({
-        id: index + 1,
-        title: title,
-        description: `Module ${index + 1}: ${title}`,
-        content: `This module covers ${title.toLowerCase()}`,
-        duration: '30-45 minutes',
-        order: index + 1,
-        is_completed: false
-      }));
-      
+      // Get messages from localStorage
+      const messages = JSON.parse(localStorage.getItem(`chat_messages_${sessionId}`) || '[]');
+
       // Convert the session data to match the expected format
       return {
         session: {
-          public_id: sessionData.id,
-          user_id: sessionData.user_id.toString(),
+          public_id: sessionData.public_id,
+          user_id: sessionData.user_id,
           tutor_id: sessionData.tutor_id,
           topic: sessionData.topic,
           status: sessionData.status,
-          created_at: new Date(Number(sessionData.created_at) / 1000000).toISOString(),
-          updated_at: new Date(Number(sessionData.updated_at) / 1000000).toISOString()
+          created_at: sessionData.created_at,
+          updated_at: sessionData.updated_at
         },
         course: {
           id: 1,
           name: `${sessionData.topic} Course`,
-          description: `Personalized AI tutoring session on ${sessionData.topic}`,
+          description: courseOutline?.description || `Personalized AI tutoring session on ${sessionData.topic}`,
+          topic: sessionData.topic,
+          difficulty_level: courseOutline?.difficulty_level || 'intermediate',
+          estimated_duration: courseOutline?.estimated_duration || '4 weeks',
+          learning_objectives: courseOutline?.learning_objectives || [],
           modules: modules
         },
         modules: modules,
         progress: {
           id: 1,
-          user_id: sessionData.user_id.toString(),
-          session_id: sessionData.id,
+          user_id: sessionData.user_id,
+          session_id: sessionData.public_id,
           course_id: 1,
           current_module_id: 1, // Start with first module
           progress_percentage: 0, // Start at 0%
           last_activity: new Date().toISOString()
         },
-        messages: []
+        messages: messages
       };
     } catch (error) {
       console.error('Error fetching session:', error);
@@ -371,8 +441,16 @@ const tutorService = {
     }
   },
 
-  getAllSessions: async (): Promise<any[]> => {
-    return [];
+  getAllSessions: async (backendActor?: any): Promise<TutorSession[]> => {
+    try {
+      // Use frontend-only session management
+      const sessions = await tutorService.getSessions();
+      console.log('Retrieved all sessions from localStorage:', sessions);
+      return sessions;
+    } catch (error) {
+      console.error('Error in getAllSessions:', error);
+      return [];
+    }
   },
 
   getTutorSessions: async (tutorId: string): Promise<any[]> => {
@@ -398,31 +476,107 @@ const tutorService = {
     console.log('Deleting knowledge base file:', fileId);
   },
 
-  getSuggestedTopics: async (tutorId: string, backendActor?: any): Promise<TopicSuggestion[]> => {
-    try {
-      if (!backendActor) {
-        throw new Error('Backend actor is not available');
-      }
+  // Clear all cached topics (for testing/debugging)
+  clearAllCachedTopics: () => {
+    console.log('🧹 Clearing all cached topics...');
+    const keys = Object.keys(localStorage);
+    const topicKeys = keys.filter(key => key.startsWith('topics_'));
+    topicKeys.forEach(key => {
+      console.log('🗑️ Removing cached topics:', key);
+      localStorage.removeItem(key);
+    });
+    console.log('✅ Cleared', topicKeys.length, 'cached topic entries');
+  },
 
-      // Fetch tutor data to get expertise and personality
-      const tutor = await canisterService.getTutor(tutorId, backendActor);
+  // Clear topics for a specific tutor
+  clearTutorTopics: (tutorId: string) => {
+    const cacheKey = `topics_${tutorId}`;
+    localStorage.removeItem(cacheKey);
+    console.log('🗑️ Cleared cached topics for tutor:', tutorId);
+  },
+
+  // Debug function to show all cached topics
+  debugCachedTopics: () => {
+    console.log('🔍 All cached topics:');
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('topics_')) {
+        const topics = localStorage.getItem(key);
+        console.log(`  ${key}:`, topics);
+      }
+    });
+  },
+
+  // Sync tutors between backend and localStorage
+  syncTutorsWithLocalStorage: async (backendActor: any): Promise<void> => {
+    try {
+      console.log('🔄 Syncing tutors between backend and localStorage...');
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+      const backendTutors = await tutorService.getAllTutors(backendActor!);
+      localStorage.setItem('tutors', JSON.stringify(backendTutors));
+      console.log('✅ Tutors synced to localStorage:', backendTutors.length, 'tutors');
+    } catch (error) {
+      console.error('❌ Failed to sync tutors:', error);
+    }
+  },
+
+  getSuggestedTopics: async (tutorId: string, backendActor?: any, forceRegenerate: boolean = false): Promise<TopicSuggestion[]> => {
+    try {
+      console.log('🔍 getSuggestedTopics called with tutorId:', tutorId, 'forceRegenerate:', forceRegenerate);
+      
+      // Check if we have cached topics for this tutor (unless forcing regeneration)
+      const cacheKey = `topics_${tutorId}`;
+      console.log('🔍 Looking for cached topics with key:', cacheKey);
+      
+      if (!forceRegenerate) {
+        const cachedTopics = localStorage.getItem(cacheKey);
+        if (cachedTopics) {
+          const parsed = JSON.parse(cachedTopics);
+          console.log('✅ Using cached topics for tutor:', tutorId, parsed);
+          return parsed;
+        }
+      } else {
+        console.log('🔄 Force regeneration requested, clearing cache for:', tutorId);
+        localStorage.removeItem(cacheKey);
+      }
+      
+      console.log('❌ No cached topics found for tutor:', tutorId);
+
+      // Get tutor data from localStorage instead of backend
+      const tutors = JSON.parse(localStorage.getItem('tutors') || '[]');
+      const tutor = tutors.find((t: any) => t.public_id === tutorId);
+      
+      if (!tutor) {
+        throw new Error(`Tutor not found in localStorage: ${tutorId}`);
+      }
+      
       console.log('Fetched tutor for AI topic suggestions:', tutor);
 
-      // Call the backend to get AI-generated topic suggestions
-      const suggestions = await backendActor.get_ai_topic_suggestions(tutorId);
-      console.log('AI topic suggestions from backend:', suggestions);
+      // Use frontend Groq service for topic suggestions (now passes tutor public_id to hit Python route)
+      const suggestions = await groqService.generateTopicSuggestions(
+        tutor.expertise || [],
+        tutor.teaching_style || 'casual',
+        tutor.personality || 'helpful',
+        tutor.public_id
+      );
+      console.log('AI topic suggestions from frontend Groq:', suggestions);
 
-      if ('Err' in suggestions) {
-        throw new Error(suggestions.Err);
+      // Cache the topics for this tutor
+      if (suggestions && suggestions.length > 0) {
+        const cacheKey = `topics_${tutorId}`;
+        console.log('💾 Caching topics for tutor:', tutorId, 'with key:', cacheKey);
+        console.log('💾 Topics to cache:', suggestions);
+        localStorage.setItem(cacheKey, JSON.stringify(suggestions));
+        console.log('✅ Topics cached successfully');
+        
+        // Verify the cache was set correctly
+        const verifyCache = localStorage.getItem(cacheKey);
+        console.log('🔍 Verification - cached topics for', tutorId, ':', verifyCache);
       }
 
-      // Convert the suggestions to match the TopicSuggestion interface
-      return suggestions.Ok.map((suggestion: any) => ({
-        topic: suggestion.topic,
-        description: suggestion.description,
-        difficulty: suggestion.difficulty,
-        expertise_area: suggestion.expertise_area
-      }));
+      return suggestions;
     } catch (error) {
       console.error('Error getting AI suggested topics:', error);
       return [];
@@ -435,21 +589,14 @@ const tutorService = {
         throw new Error('Backend actor is not available');
       }
 
-      // Call the backend to validate the topic
-      const validation = await backendActor.validate_topic(tutorId, topic);
-      console.log('Topic validation from backend:', validation);
+      // Fetch tutor data to get expertise
+      const tutor = await canisterService.getTutor(tutorId, backendActor);
 
-      if ('Err' in validation) {
-        throw new Error(validation.Err);
-      }
+      // Use frontend Groq service for topic validation
+      const validation = await groqService.validateTopic(topic, tutor.expertise || []);
+      console.log('Topic validation from frontend Groq:', validation);
 
-      // Convert the validation to match the TopicValidation interface
-      return {
-        is_relevant: validation.Ok.is_relevant,
-        confidence: validation.Ok.confidence,
-        reasoning: validation.Ok.reasoning,
-        suggested_alternatives: validation.Ok.suggested_alternatives
-      };
+      return validation;
     } catch (error) {
       console.error('Error validating topic:', error);
       return {
@@ -463,37 +610,67 @@ const tutorService = {
 
   startSession: async (tutorId: string, topic: string, backendActor?: any): Promise<TutorSession> => {
     try {
-      if (!backendActor) {
-        throw new Error('Backend actor is not available');
-      }
+      // Create session via Python backend (generates course outline)
+      const py = await pythonBackend.createTutorSession(tutorId, topic);
+      const sessionFromPy = py?.session;
+      const courseFromPy = py?.course;
 
-      // Call the backend to create a real session
-      const result = await backendActor.create_chat_session(tutorId, topic);
-      
-      if ('Err' in result) {
-        throw new Error(result.Err);
-      }
-
-      const sessionId = result.Ok;
-      
-      // Return the session data
-      return {
+      // Map to our local session shape and persist minimal metadata for continuity
+      const sessionId = sessionFromPy?.public_id || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const session: TutorSession = {
         public_id: sessionId,
-        user_id: 'current-user', // This will be set by the backend
+        user_id: sessionFromPy?.user_id || 'current-user',
         tutor_id: tutorId,
         topic: topic,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        status: sessionFromPy?.status || 'active',
+        created_at: sessionFromPy?.created_at || new Date().toISOString(),
+        updated_at: sessionFromPy?.updated_at || new Date().toISOString()
       };
+
+      const existingSessions = JSON.parse(localStorage.getItem('tutor_sessions') || '[]');
+      existingSessions.push(session);
+      localStorage.setItem('tutor_sessions', JSON.stringify(existingSessions));
+
+      if (courseFromPy) {
+        localStorage.setItem(`course_outline_${sessionId}`, JSON.stringify(courseFromPy.outline || courseFromPy));
+      }
+
+      console.log('Created session via Python and persisted locally:', session);
+      return session;
     } catch (error) {
       console.error('Error creating session:', error);
       throw error;
     }
   },
 
-  deleteSession: async (sessionId: string): Promise<void> => {
-    console.log('Deleting session:', sessionId);
+  deleteSession: async (sessionId: string, backendActor?: any): Promise<void> => {
+    try {
+      // Delete session from localStorage
+      const existingSessions = JSON.parse(localStorage.getItem('tutor_sessions') || '[]');
+      const updatedSessions = existingSessions.filter((session: TutorSession) => session.public_id !== sessionId);
+      localStorage.setItem('tutor_sessions', JSON.stringify(updatedSessions));
+      
+      // Also delete associated course outline and messages
+      localStorage.removeItem(`course_outline_${sessionId}`);
+      localStorage.removeItem(`chat_messages_${sessionId}`);
+      
+      console.log('Session and associated data deleted from frontend:', sessionId);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      throw error;
+    }
+  },
+
+  getSessions: async (): Promise<TutorSession[]> => {
+    try {
+      // Get sessions from localStorage
+      const sessions = JSON.parse(localStorage.getItem('tutor_sessions') || '[]');
+      console.log('Retrieved frontend sessions:', sessions);
+      return sessions;
+    } catch (error) {
+      console.error('Error getting sessions:', error);
+      return [];
+    }
   },
 
   togglePin: async (tutorId: string): Promise<Tutor> => {
@@ -509,7 +686,162 @@ const tutorService = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+  },
+
+  // Enhanced AI Functions
+  validateAiTopic: async (tutorId: string, topic: string, backendActor?: any): Promise<TopicValidation> => {
+    try {
+      // Get tutor data to extract expertise
+      const tutor = await tutorService.getTutor(tutorId, backendActor);
+      if (!tutor) {
+        throw new Error('Tutor not found');
+      }
+
+      console.log('Validating AI topic with frontend Groq:', { tutorId, topic });
+      const validation = await groqService.validateTopic(topic, tutor.expertise);
+      console.log('AI topic validation result:', validation);
+      return validation;
+    } catch (error) {
+      console.error('Error validating AI topic:', error);
+      throw error;
+    }
+  },
+
+  generateAiCourseOutline: async (tutorId: string, topic: string, backendActor?: any): Promise<CourseOutline> => {
+    try {
+      // Get tutor data to extract expertise and teaching style
+      const tutor = await tutorService.getTutor(tutorId, backendActor);
+      if (!tutor) {
+        throw new Error('Tutor not found');
+      }
+
+      console.log('Generating AI course outline with frontend Groq:', { tutorId, topic });
+      const outline = await groqService.generateCourseOutline(topic, tutor.expertise, tutor.teaching_style);
+      console.log('AI course outline result:', outline);
+      return outline;
+    } catch (error) {
+      console.error('Error generating AI course outline:', error);
+      throw error;
+    }
+  },
+
+  sendAiTutorMessage: async (sessionId: string, message: string, backendActor?: any): Promise<{ response: string; analysis: ComprehensionAnalysis }> => {
+    try {
+      // Get session data to extract tutor information
+      const session = await tutorService.getSession(sessionId, backendActor);
+      if (!session) {
+        throw new Error('Session not found');
+      }
+
+      // Get tutor data
+      const tutor = await tutorService.getTutor(session.tutor_id, backendActor);
+      if (!tutor) {
+        throw new Error('Tutor not found');
+      }
+
+      console.log('Sending AI tutor message with frontend Groq:', { sessionId, message });
+      const response = await groqService.generateTutorResponse(
+        message, 
+        tutor.expertise, 
+        tutor.teaching_style, 
+        tutor.personality
+      );
+      
+      // Create a simple analysis (since we don't have complex analysis from Groq)
+      const analysis: ComprehensionAnalysis = {
+        comprehension_score: 0.8, // Default score
+        difficulty_adjustment: "intermediate",
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('AI tutor message result:', { response, analysis });
+      return { response, analysis };
+    } catch (error) {
+      console.error('Error sending AI tutor message:', error);
+      throw error;
+    }
+  },
+
+  createAiLearningSession: async (tutorId: string, topic: string, backendActor?: any): Promise<{ sessionId: string; welcomeMessage: string }> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+
+      console.log('Creating AI learning session:', { tutorId, topic });
+      const result = await backendActor.create_ai_learning_session(tutorId, topic);
+      console.log('AI learning session result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error creating AI learning session:', error);
+      throw error;
+    }
+  },
+
+  // Learning Analytics Functions
+  getLearningProgress: async (sessionId: string, backendActor?: any): Promise<LearningProgress> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+
+      console.log('Getting learning progress:', sessionId);
+      const progress = await backendActor.get_learning_progress(sessionId);
+      console.log('Learning progress result:', progress);
+      return progress;
+    } catch (error) {
+      console.error('Error getting learning progress:', error);
+      throw error;
+    }
+  },
+
+  getLearningMetrics: async (sessionId: string, backendActor?: any): Promise<LearningMetrics[]> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+
+      console.log('Getting learning metrics:', sessionId);
+      const metrics = await backendActor.get_learning_metrics(sessionId);
+      console.log('Learning metrics result:', metrics);
+      return metrics;
+    } catch (error) {
+      console.error('Error getting learning metrics:', error);
+      throw error;
+    }
+  },
+
+  completeModule: async (moduleId: number, backendActor?: any): Promise<string> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+
+      console.log('Completing module:', moduleId);
+      const result = await backendActor.complete_module(moduleId);
+      console.log('Module completion result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error completing module:', error);
+      throw error;
+    }
+  },
+
+  getModuleCompletions: async (sessionId: string, backendActor?: any): Promise<ModuleCompletion[]> => {
+    try {
+      if (!backendActor) {
+        throw new Error('Backend actor not available');
+      }
+
+      console.log('Getting module completions:', sessionId);
+      const completions = await backendActor.get_module_completions(sessionId);
+      console.log('Module completions result:', completions);
+      return completions;
+    } catch (error) {
+      console.error('Error getting module completions:', error);
+      throw error;
+    }
   }
 };
 
-export default tutorService; 
+export default tutorService;

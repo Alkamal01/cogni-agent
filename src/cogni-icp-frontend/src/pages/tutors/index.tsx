@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, FeatureGate, UsageLimitIndicator, PlanBadge } from '../../components/shared';
 import TutorFormModal, { TutorFormData } from '../../components/tutors/TutorFormModal';
 import tutorService, { Tutor } from '../../services/tutorService';
+import cloudinaryService from '../../services/cloudinaryService';
 import { useToast } from '../../hooks/useToast';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -91,6 +92,10 @@ const TutorsPage: React.FC = () => {
         const data = await tutorService.getAllTutors(backendActor);
         console.log('Tutors fetched from backend:', data);
         setTutors(data);
+        
+        // Also store tutors in localStorage for frontend access
+        localStorage.setItem('tutors', JSON.stringify(data));
+        console.log('✅ Stored tutors in localStorage for frontend access');
       } catch (error) {
         console.error('Error fetching tutors:', error);
         setError('Failed to load tutors. Please try again later.');
@@ -233,9 +238,30 @@ const TutorsPage: React.FC = () => {
     try {
       console.log('Starting tutor creation with data:', data);
       
+      // Handle image upload to Cloudinary if imageFile is provided
+      let imageUrl = data.imageUrl;
+      if (data.imageFile) {
+        try {
+          console.log('📤 Uploading image to Cloudinary...');
+          const uploadResult = await cloudinaryService.uploadImage(data.imageFile, 'cogniedufy/tutors');
+          imageUrl = uploadResult.secure_url;
+          console.log('✅ Image uploaded successfully:', imageUrl);
+        } catch (error) {
+          console.error('❌ Failed to upload image to Cloudinary:', error);
+          // Fallback to data URL if Cloudinary fails
+          const reader = new FileReader();
+          imageUrl = await new Promise<string>((resolve) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(data.imageFile!);
+          });
+          console.log('⚠️ Using fallback data URL for image');
+        }
+      }
+      
       // Format any data if needed before sending
       const formattedData = {
         ...data,
+        imageUrl: imageUrl,
         expertise: Array.isArray(data.expertise) ? data.expertise.filter(item => item && typeof item === 'string' ? item.trim() !== '' : false) : [],
         // Convert File items to null for API consumption - in real app, you'd upload these files
         knowledgeBase: Array.isArray(data.knowledgeBase) ? data.knowledgeBase.map(item => 
@@ -280,6 +306,38 @@ const TutorsPage: React.FC = () => {
         // Create new tutor
         const createdTutor = await tutorService.createTutor(formattedData, backendActor);
         setTutors(prevTutors => [...prevTutors, createdTutor]);
+        
+        // Store the new tutor in localStorage for frontend access
+        const existingTutors = JSON.parse(localStorage.getItem('tutors') || '[]');
+        existingTutors.push(createdTutor);
+        localStorage.setItem('tutors', JSON.stringify(existingTutors));
+        console.log('✅ Stored new tutor in localStorage:', createdTutor.public_id);
+        
+        // Automatically generate course outline for the new tutor
+        try {
+          const userSettings = {
+            learning_style: 'visual', // Default learning style
+            difficulty_level: 'intermediate', // Default difficulty
+            ai_interaction_style: 'friendly' // Default AI style
+          };
+          
+          const courseOutline = await tutorService.generateAiCourseOutline(
+            createdTutor.public_id, 
+            'Introduction to ' + createdTutor.expertise[0], // Use first expertise area
+            backendActor
+          );
+          
+          console.log('Auto-generated course outline:', courseOutline);
+          toast({
+            title: 'Course Generated',
+            description: `Course outline generated for ${createdTutor.name}`,
+            variant: 'info'
+          });
+        } catch (courseError) {
+          console.warn('Failed to auto-generate course outline:', courseError);
+          // Don't show error to user, course generation is optional
+        }
+        
         toast({
           title: 'Success',
           description: `Tutor "${createdTutor.name}" created successfully`,

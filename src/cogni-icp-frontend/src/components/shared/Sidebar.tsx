@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa'; // Import from react-icons
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import logo from '../../cognilogo.png';
 import logo2 from '../../logo2.png';
 
@@ -46,11 +47,12 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const mainNavItems = [
     { name: 'Dashboard', icon: Home, path: '/dashboard' },
     { name: 'Tutors', icon: GraduationCap, path: '/tutors' },
     { name: 'Study Groups', icon: Users, path: '/groups' },
-    { name: 'AI Learning Hub', icon: BookOpen, path: '/learning-paths' },
+    { name: 'Studio', icon: BookOpen, path: '/learning-paths' },
     { name: 'Analytics', icon: BarChart2, path: '/analytics' },
     { name: 'Achievements', icon: Award, path: '/achievements' }
   ];
@@ -207,15 +209,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
           >
             <div className={`flex items-center space-x-4 px-3 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl ${!isSidebarOpen && 'lg:justify-center lg:px-0 lg:space-x-0'}`}>
               <div className="h-10 w-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-md flex-shrink-0">
-                KS
+                {user?.username?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               {isSidebarOpen && (
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    Kamal Sultan
+                    {user?.username || user?.email || 'User'}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    Premium Plan
+                    {user?.role === 'admin' ? 'Admin Plan' : 'Free Plan'}
                   </p>
                 </div>
               )}

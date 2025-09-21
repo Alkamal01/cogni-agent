@@ -71,7 +71,7 @@ const TutorSession: React.FC = () => {
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
 
   // Topic list state (for when no session is active)
-  const [tutorSessions, setTutorSessions] = useState<SessionInfo[]>([]);
+  const [tutorSessions, setTutorSessions] = useState<TutorSessionType[]>([]);
   const [topicListLoading, setTopicListLoading] = useState(false);
   const [topicListError, setTopicListError] = useState<string | null>(null);
   const [topicSuggestions, setTopicSuggestions] = useState<TopicSuggestion[]>([]);
@@ -87,15 +87,18 @@ const TutorSession: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+
+
   const [debouncedTopic] = useDebounce(topic, 500);
 
   // Chat state management
   const [messages, setMessages] = useState<TutorMessageChunk[]>([]);
   const [tutorStatus, setTutorStatus] = useState<'idle' | 'thinking' | 'responding' | 'error'>('idle');
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isError, setIsError] = useState(false);
 
-  // Initialize session
+  // Initialize session with optimized loading
   const initializeSession = async () => {
     if (!tutorId) return;
 
@@ -103,59 +106,89 @@ const TutorSession: React.FC = () => {
       setIsLoading(true);
       setError(null);
     
-      // Fetch tutor data
-      const tutorData = await tutorService.getTutor(tutorId, backendActor);
-      if (!tutorData) {
-        throw new Error(`Tutor with ID ${tutorId} not found`);
-      }
-      setTutor(tutorData);
-
-      // Set backend actor for chat service
+      // Set backend actor for chat service early
       if (backendActor) {
         icpChatService.setBackendActor(backendActor);
       }
 
+      // Start with essential data loading in parallel
+      const essentialPromises = [
+        tutorService.getTutor(tutorId, backendActor)
+      ];
+
       if (sessionId && sessionId !== 'undefined') {
-        // Fetch session data
-        const sessionData = await tutorService.getSession(sessionId, backendActor);
+        // For active sessions, load session data in parallel with tutor data
+        essentialPromises.push(tutorService.getSession(sessionId, backendActor));
+      }
+
+      // Wait for essential data
+      const results = await Promise.all(essentialPromises);
+      const tutorData = results[0] as any;
+      const sessionData = results[1] as any;
+      
+      if (!tutorData) {
+        throw new Error(`Tutor with ID ${tutorId} not found`);
+      }
+      setTutor(tutorData);
+      try {
+        // Persist active tutor id for downstream validation endpoints
+        if (tutorData?.public_id) {
+          localStorage.setItem('last_active_tutor_public_id', tutorData.public_id);
+        }
+      } catch {}
+
+      if (sessionId && sessionId !== 'undefined' && sessionData) {
+        // Set session data immediately
         setSession(sessionData.session);
         setCourse(sessionData.course);
         setModules(sessionData.modules || []);
         setProgress(sessionData.progress);
-
-        // Load initial messages
         setMessages(sessionData.messages || []);
         
-        // Connect to the chat service for this session
+        // Connect to chat service (non-blocking)
         if (sessionData.session?.public_id) {
-          const connected = await icpChatService.connect(sessionData.session.public_id);
-          if (connected) {
-            setIsConnected(true);
-            
-            // Set up message listeners
-            icpChatService.onMessage((chunk: TutorMessageChunk) => {
-              setMessages(prev => [...prev, chunk]);
-            });
-            
-            // Set up status listeners
-            icpChatService.onStatus((status: 'idle' | 'thinking' | 'responding' | 'error') => {
-              setTutorStatus(status);
-            });
-          } else {
-            console.error('Failed to connect to chat service');
+          setIsConnecting(true);
+          icpChatService.connect(sessionData.session.public_id).then(connected => {
+            setIsConnecting(false);
+            if (connected) {
+              setIsConnected(true);
+              
+              // Set up message listeners
+              icpChatService.onMessage((chunk: TutorMessageChunk) => {
+                setMessages(prev => [...prev, chunk]);
+              });
+              
+              // Set up status listeners
+              icpChatService.onStatus((status: 'idle' | 'thinking' | 'responding' | 'error') => {
+                setTutorStatus(status);
+              });
+            } else {
+              console.error('Failed to connect to chat service');
+              setIsError(true);
+            }
+          }).catch(error => {
+            setIsConnecting(false);
+            console.error('Error connecting to chat service:', error);
             setIsError(true);
-          }
+          });
         }
       } else {
         // No active session, show topic list
-        await fetchTutorSessions();
-        // Load topic suggestions asynchronously after main content is displayed
-        fetchTopicSuggestions(tutorId);
+        // Load sessions and suggestions in parallel (non-blocking)
+        Promise.all([
+          fetchTutorSessions(),
+          fetchTopicSuggestions(tutorId)
+        ]).catch(error => {
+          console.error('Error loading topic list data:', error);
+        });
       }
+
+      // Allow UI to render with essential data
+      setIsLoading(false);
+
     } catch (err) {
       console.error('Error initializing session:', err);
       setError(err instanceof Error ? err.message : 'Failed to load session');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -166,7 +199,7 @@ const TutorSession: React.FC = () => {
 
     try {
       setTopicListLoading(true);
-      const sessions = await tutorService.getTutorSessions(tutorId);
+      const sessions = await tutorService.getAllSessions(backendActor);
       setTutorSessions(sessions);
     } catch (err) {
       console.error('Error fetching tutor sessions:', err);
@@ -180,8 +213,14 @@ const TutorSession: React.FC = () => {
   const fetchTopicSuggestions = async (tutorId: string): Promise<void> => {
     try {
       setIsLoadingSuggestions(true);
-      const suggestions = await tutorService.getSuggestedTopics(tutorId, backendActor);
-        setTopicSuggestions(suggestions);
+      console.log('🔍 Fetching topic suggestions for tutor:', tutorId);
+      
+      // Debug: Show all cached topics before fetching
+      tutorService.debugCachedTopics();
+      
+      const suggestions = await tutorService.getSuggestedTopics(tutorId);
+      console.log('✅ Received topic suggestions for tutor:', tutorId, suggestions);
+      setTopicSuggestions(suggestions);
     } catch (err) {
       console.error('Error fetching topic suggestions:', err);
     } finally {
@@ -205,13 +244,30 @@ const TutorSession: React.FC = () => {
       }
     };
 
-  // Start new session
+  // Start new session with automatic topic validation
   const handleStartSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tutorId || !topic.trim()) return;
 
     try {
       setIsStartingSession(true);
+      
+      // First, validate the topic automatically
+      try {
+        const validation = await tutorService.validateAiTopic(tutorId, topic, backendActor);
+        if (!validation.is_relevant) {
+          showToast('warning', `Topic may not be suitable for this tutor. Confidence: ${(validation.confidence * 100).toFixed(0)}%`);
+          if (validation.suggested_alternatives && validation.suggested_alternatives.length > 0) {
+            showToast('info', `Suggested alternatives: ${validation.suggested_alternatives.join(', ')}`);
+          }
+          return;
+        }
+        showToast('success', `Topic validated! Confidence: ${(validation.confidence * 100).toFixed(0)}%`);
+      } catch (validationError) {
+        console.warn('Topic validation failed, proceeding anyway:', validationError);
+        // Continue with session creation even if validation fails
+      }
+      
       const newSession = await tutorService.startSession(tutorId, topic, backendActor);
       navigate(`/tutors/${tutorId}/${newSession.public_id}`);
     } catch (err) {
@@ -297,7 +353,7 @@ const TutorSession: React.FC = () => {
     try {
       setIsDeleting(true);
       setDeleteError(null);
-      await tutorService.deleteSession(sessionId);
+      await tutorService.deleteSession(sessionId, backendActor);
       setDeletingSessionId(null);
       await fetchTutorSessions();
       showToast('success', 'Session deleted successfully');
@@ -441,6 +497,7 @@ const TutorSession: React.FC = () => {
           sessionToDeleteId={deletingSessionId}
         />
 
+
           {/* Course Sidebar */}
       <CourseSidebar
         tutor={tutor}
@@ -468,6 +525,7 @@ const TutorSession: React.FC = () => {
         isSending={isSending}
         tutorStatus={tutorStatus}
         isConnected={isConnected}
+        isConnecting={isConnecting}
         isError={!!error}
         isCourseSidebarOpen={isCourseSidebarOpen}
         sessionStatus={session.status}
@@ -476,11 +534,12 @@ const TutorSession: React.FC = () => {
         onToggleSidebar={toggleCourseSidebar}
         onInputChange={setInput}
         onSendMessage={handleSendMessage}
-                onKeyPress={handleKeyPress}
+        onKeyPress={handleKeyPress}
         onToggleVoiceChat={toggleVoiceChat}
         onCloseVoiceChat={closeVoiceChat}
         user={user}
       />
+
     </div>
   );
 };

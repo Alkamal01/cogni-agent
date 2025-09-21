@@ -32,8 +32,16 @@ export const canisterService = {
    */
   getAllTutors: async (backendActor?: any) => {
     try {
-      if (!backendActor) {
-        // For now, return mock data if no backend actor is provided
+      if (!backendActor || typeof backendActor.get_tutors !== 'function') {
+        // Fallback to localStorage when not using ICP actor (traditional auth)
+        try {
+          const ls = localStorage.getItem('tutors');
+          if (ls) {
+            const parsed = JSON.parse(ls);
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed && parsed.items && Array.isArray(parsed.items)) return parsed.items;
+          }
+        } catch {}
         return [];
       }
 
@@ -72,7 +80,17 @@ export const canisterService = {
    */
   getTutor: async (publicId: string, backendActor?: any) => {
     try {
-      if (!backendActor) {
+      if (!backendActor || typeof backendActor.get_tutor_by_public_id !== 'function') {
+        // Fallback to localStorage
+        try {
+          const ls = localStorage.getItem('tutors');
+          if (ls) {
+            const items = JSON.parse(ls);
+            const arr = Array.isArray(items) ? items : (items?.items || []);
+            const found = arr.find((t: any) => t.public_id === publicId);
+            if (found) return found;
+          }
+        } catch {}
         throw new Error('Backend actor is not available');
       }
 
@@ -158,7 +176,7 @@ export const canisterService = {
       
       console.log('voiceId:', voiceId);
       console.log('voiceSettings:', voiceSettings);
-      console.log('avatarUrl:', avatarUrl);
+      console.log('avatarUrl:', avatarUrl ? 'Avatar URL provided' : 'No avatar URL');
       
       // Convert any BigInt values to strings in arrays
       const convertBigIntToString = (value: any): any => {

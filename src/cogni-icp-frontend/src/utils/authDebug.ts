@@ -1,5 +1,5 @@
 import { authService } from '../services/authService';
-import { aiSocketService } from '../services/aiSocketService';
+import aiSocketService from '../services/aiSocketService';
 
 // Add this function to the window object for debugging
 declare global {
@@ -14,7 +14,7 @@ declare global {
 export function checkAuthStatus() {
   const token = authService.getToken();
   const isAuthenticated = authService.isAuthenticated();
-  const socketConnected = aiSocketService.isConnectedToServer();
+  const socketConnected = aiSocketService.isSocketConnected();
 
   console.log('Auth Status:', {
     token: token ? 'Present' : 'Missing',

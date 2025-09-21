@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { ToastProvider } from './contexts/ToastContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { SuiProvider } from './contexts/SuiContext';
@@ -24,8 +23,7 @@ import ScrollToTop from './components/utils/ScrollToTop';
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      {/* AuthProvider is now wrapping the app in main.jsx, so it's not needed here */}
-        <ToastProvider>
+      {/* AuthProvider and ToastProvider are now wrapping the app in main.jsx */}
           <SubscriptionProvider>
             <SuiProvider>
             <SocketProvider>
@@ -68,7 +66,6 @@ const App: React.FC = () => {
             </SocketProvider>
           </SuiProvider>
           </SubscriptionProvider>
-        </ToastProvider>
     </ThemeProvider>
   );
 };

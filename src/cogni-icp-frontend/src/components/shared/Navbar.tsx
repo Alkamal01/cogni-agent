@@ -49,7 +49,7 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
-  const { isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, login, logout, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   // const [searchText, setSearchText] = useState(''); // Removed searchText state
@@ -259,25 +259,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
     loadConnectionData();
   }, []);
 
-  // Expanded placeholder user object
-  const user = isAuthenticated ? {
-    id: 1,
-    public_id: 'placeholder',
-    name: 'Authenticated User',
-    email: 'user@example.com',
-    username: 'Authenticated User',
-    first_name: 'Authenticated',
-    last_name: 'User',
-    is_verified: true,
-    created_at: '',
-    avatar_url: '',
-    bio: '',
-    points: 0,
-    badges: [],
-    survey_completed: true,
-    is_admin: false,
-    wallet_address: '',
-  } : null;
+  // Use the real user from AuthContext
 
   return (
     <motion.nav 

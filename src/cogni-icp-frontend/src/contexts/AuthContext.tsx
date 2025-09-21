@@ -4,6 +4,8 @@ import { Actor, Identity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { canisterId, createActor } from '../../../declarations/cogni-icp-backend';
 import type { User as BackendUser } from '../../../declarations/cogni-icp-backend/cogni-icp-backend.did';
+import pythonAuthService from '../services/pythonAuthService';
+import { useToast } from './ToastContext';
 import icpChatService from '../services/icpChatService';
 
 // Helper function to convert BigInt values to strings for localStorage
@@ -45,6 +47,10 @@ interface AuthContextType {
   login: () => void;
   loginTraditional: (email: string, password: string) => Promise<void>;
   registerTraditional: (username: string, email: string, password: string) => Promise<void>;
+  requestPasswordReset?: (email: string) => Promise<void>;
+  resetPassword?: (token: string, password: string) => Promise<void>;
+  verifyEmail?: (token: string) => Promise<void>;
+  loginWithGoogle?: () => void;
   logout: () => void;
   authClient: AuthClient | null;
   identity: Identity | null;
@@ -63,46 +69,92 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authMethod, setAuthMethod] = useState<'internet-identity' | 'traditional' | null>(null);
+  const { showToast } = useToast();
+
+  // Sync Python-authenticated user metadata into ICP canister (best-effort)
+  const syncExternalUserToCanister = async (me: any) => {
+    try {
+      if (!backendActor || !me) return;
+      const userLike = me.user || me;
+      if (!userLike?.email) return;
+      const email: string = userLike.email;
+      const username: string | undefined = userLike.username || userLike.name;
+      const firstName: string | undefined = userLike.first_name || userLike.firstName;
+      const lastName: string | undefined = userLike.last_name || userLike.lastName;
+      const avatarUrl: string | undefined = userLike.avatar_url || userLike.avatar || userLike.imageUrl;
+      const isVerified: boolean | undefined = userLike.is_verified ?? userLike.email_verified ?? userLike.verified;
+
+      // Call canister upsert (ignore response)
+      if (typeof backendActor?.upsert_external_user !== 'function') {
+        return; // No canister bindings available in this environment
+      }
+      await backendActor.upsert_external_user(
+        email,
+        username ? [username] : [],
+        firstName ? [firstName] : [],
+        lastName ? [lastName] : [],
+        avatarUrl ? [avatarUrl] : [],
+        typeof isVerified === 'boolean' ? [isVerified] : [],
+      );
+      showToast('success', 'Profile synced to ICP canister');
+    } catch (e) {
+      console.warn('User sync to canister failed (non-fatal):', e);
+      showToast('warning', 'Profile sync to canister failed. Will retry.');
+      // Minimal retry once after a short delay
+      setTimeout(async () => {
+        try {
+          if (!backendActor) return;
+          const userLike = me.user || me;
+          if (!userLike?.email) return;
+          await backendActor.upsert_external_user(
+            userLike.email,
+            userLike.username ? [userLike.username] : [],
+            userLike.first_name ? [userLike.first_name] : [],
+            userLike.last_name ? [userLike.last_name] : [],
+            (userLike.avatar_url || userLike.avatar || userLike.imageUrl) ? [userLike.avatar_url || userLike.avatar || userLike.imageUrl] : [],
+            typeof (userLike.is_verified ?? userLike.email_verified ?? userLike.verified) === 'boolean' ? [Boolean(userLike.is_verified ?? userLike.email_verified ?? userLike.verified)] : [],
+          );
+          showToast('success', 'Profile synced to ICP canister');
+        } catch (e2) {
+          console.warn('Retry user sync failed:', e2);
+        }
+      }, 1200);
+    }
+  };
+
+  // Resolve IC host (boundary) for agent; default to mainnet boundary
+  const IC_HOST: string = (import.meta as any).env?.VITE_IC_HOST || 'https://ic0.app';
 
   useEffect(() => {
     const initAuth = async () => {
       setIsLoading(true);
-      
-      // Initialize backend actor for traditional auth
-      const anonymousIdentity = await AuthClient.create();
-      const anonymousActor = createActor(canisterId, { 
-        agentOptions: { identity: anonymousIdentity.getIdentity() } 
-      });
-      setBackendActor(anonymousActor);
-      
-      // Initialize ICP chat service with anonymous actor
-      icpChatService.setBackendActor(anonymousActor);
-      
-      // Check for traditional auth first
-      const storedUser = localStorage.getItem('user');
-      const storedAuthMethod = localStorage.getItem('authMethod');
-      
-      if (storedUser && storedAuthMethod === 'traditional') {
-        try {
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
+
+      // Try Python auth first (token stored in cookies/localStorage). If it works, skip canister actor init.
+      try {
+        const me = await pythonAuthService.me();
+        if (me && (me.user || me.username || me.email)) {
+          setUser(me.user || me);
           setIsAuthenticated(true);
           setAuthMethod('traditional');
-        } catch (error) {
-          console.error('Error parsing stored user data:', error);
-          localStorage.removeItem('user');
-          localStorage.removeItem('authMethod');
+          // Best-effort sync to canister
+          await syncExternalUserToCanister(me);
+      setIsLoading(false);
+      return;
         }
-        setIsLoading(false);
-        return;
-      }
+      } catch {}
 
-      // Initialize Internet Identity auth
-      const client = await AuthClient.create();
-      setAuthClient(client);
+      // Initialize backend actor for Internet Identity path
+      const authClient = await AuthClient.create();
+      setAuthClient(authClient);
+      const anonymousActor = createActor(canisterId, { 
+        agentOptions: { identity: authClient.getIdentity(), host: IC_HOST } 
+      });
+      setBackendActor(anonymousActor);
+      // Initialize ICP chat service with anonymous actor
+      icpChatService.setBackendActor(anonymousActor);
 
-      if (await client.isAuthenticated()) {
-        await handleAuthenticated(client);
+      if (await authClient.isAuthenticated()) {
+        await handleAuthenticated(authClient);
         setAuthMethod('internet-identity');
       }
       setIsLoading(false);
@@ -123,48 +175,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loginTraditional = async (email: string, password: string) => {
     try {
-      // Call the backend canister login function
-      if (!backendActor) {
-        throw new Error('Backend actor not initialized');
-      }
-
-      console.log('Calling backend login_user with:', { email });
-      const result = await backendActor.login_user(email, password) as any;
-      console.log('Backend login response:', result);
-      
-      if (result.Err) {
-        throw new Error(result.Err);
-      }
-
-      const userData = result.Ok;
-      console.log('User data received:', userData);
-      
-      // Convert BigInt values to strings for localStorage
-      const serializableUserData = convertBigIntToString(userData);
-      console.log('Serializable user data:', serializableUserData);
-      
-      // Store user data in localStorage for traditional auth
-      try {
-        localStorage.setItem('user', JSON.stringify(serializableUserData));
-        localStorage.setItem('authMethod', 'traditional');
-      } catch (storageError) {
-        console.error('Failed to store user data in localStorage:', storageError);
-        // Store a simplified version without BigInt values
-        const simplifiedUserData = {
-          id: userData.id?.toString(),
-          username: userData.username,
-          email: userData.email,
-          role: userData.role,
-          is_active: userData.is_active,
-          is_verified: userData.is_verified
-        };
-        localStorage.setItem('user', JSON.stringify(simplifiedUserData));
-        localStorage.setItem('authMethod', 'traditional');
-      }
-      
-      setUser(userData);
+      // Python backend login
+      const resp = await pythonAuthService.login(email, password);
+      const me = await pythonAuthService.me();
+      setUser(me.user || me);
       setIsAuthenticated(true);
       setAuthMethod('traditional');
+      // Best-effort sync to canister after login
+      await syncExternalUserToCanister(me);
     } catch (error: any) {
       console.error('Traditional login failed:', error);
       // Ensure error message is serializable
@@ -175,48 +193,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const registerTraditional = async (username: string, email: string, password: string) => {
     try {
-      // Call the backend canister register function
-      if (!backendActor) {
-        throw new Error('Backend actor not initialized');
-      }
-
-      console.log('Calling backend register_user with:', { username, email });
-      const result = await backendActor.register_user(username, email, password) as any;
-      console.log('Backend response:', result);
-      
-      if (result.Err) {
-        throw new Error(result.Err);
-      }
-
-      const userData = result.Ok;
-      console.log('User data received:', userData);
-      
-      // Convert BigInt values to strings for localStorage
-      const serializableUserData = convertBigIntToString(userData);
-      console.log('Serializable user data:', serializableUserData);
-      
-      // Store user data in localStorage for traditional auth
-      try {
-        localStorage.setItem('user', JSON.stringify(serializableUserData));
-        localStorage.setItem('authMethod', 'traditional');
-      } catch (storageError) {
-        console.error('Failed to store user data in localStorage:', storageError);
-        // Store a simplified version without BigInt values
-        const simplifiedUserData = {
-          id: userData.id?.toString(),
-          username: userData.username,
-          email: userData.email,
-          role: userData.role,
-          is_active: userData.is_active,
-          is_verified: userData.is_verified
-        };
-        localStorage.setItem('user', JSON.stringify(simplifiedUserData));
-        localStorage.setItem('authMethod', 'traditional');
-      }
-      
-      setUser(userData);
+      await pythonAuthService.register(username, email, password);
+      const me = await pythonAuthService.me();
+      setUser(me.user || me);
       setIsAuthenticated(true);
       setAuthMethod('traditional');
+      // Best-effort sync to canister after register
+      await syncExternalUserToCanister(me);
     } catch (error: any) {
       console.error('Traditional registration failed:', error);
       // Ensure error message is serializable
@@ -227,7 +210,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const handleAuthenticated = async (client: AuthClient) => {
     const identity = client.getIdentity();
-    const actor = createActor(canisterId, { agentOptions: { identity } });
+    const actor = createActor(canisterId, { agentOptions: { identity, host: IC_HOST } });
     
     setIdentity(identity);
     setBackendActor(actor);
@@ -248,7 +231,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    // Clear traditional auth
+    // Clear traditional auth (Python)
+    try {
+      pythonAuthService.logout();
+    } catch {}
     localStorage.removeItem('user');
     localStorage.removeItem('authMethod');
     
@@ -271,6 +257,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
       loginTraditional,
       registerTraditional,
+        requestPasswordReset: async (email: string) => { await pythonAuthService.requestPasswordReset(email); },
+        resetPassword: async (token: string, password: string) => { await pythonAuthService.resetPassword(token, password); },
+        verifyEmail: async (token: string) => { await pythonAuthService.verifyEmail(token); },
+        loginWithGoogle: () => { pythonAuthService.loginWithGoogle(); },
         logout,
       authClient, 
       identity, 

@@ -1,4 +1,8 @@
 import { useAuth } from '../contexts/AuthContext';
+import { groqService } from './groqService';
+import ragService from './ragService';
+import aiSocketService from './aiSocketService';
+import conversationMemoryService from './conversationMemoryService';
 
 // Types
 export interface TutorMessageChunk {
@@ -7,6 +11,11 @@ export interface TutorMessageChunk {
   isComplete?: boolean;
   timestamp: string;
   sender: 'user' | 'tutor';
+  comprehensionAnalysis?: {
+    comprehension_score: number;
+    difficulty_adjustment: string;
+    timestamp: string;
+  };
 }
 
 export interface ProgressUpdate {
@@ -57,24 +66,24 @@ class ICPChatService {
 
   public async connect(sessionId: string): Promise<boolean> {
     try {
-      if (!this.backendActor) {
-        console.error('ICPChatService: Backend actor not available');
-        return false;
+      this.sessionId = sessionId;
+      // Try Python websocket first
+      const ok = await aiSocketService.connect(sessionId);
+      if (ok) {
+        this.isConnected = true;
+        this.currentStatus = 'idle';
+        this.messageCount = 0;
+        await this.loadExistingMessages();
+        // No polling needed when socket is active
+        return true;
       }
 
-      this.sessionId = sessionId;
+      // Fallback to local mode
       this.isConnected = true;
       this.currentStatus = 'idle';
       this.messageCount = 0;
-      
-      console.log('ICPChatService: Connected to ICP backend for session:', sessionId);
-      
-      // Load existing messages
       await this.loadExistingMessages();
-      
-      // Start polling for new messages
       this.startPolling();
-      
       return true;
     } catch (error) {
       console.error('ICPChatService: Connection failed:', error);
@@ -84,20 +93,53 @@ class ICPChatService {
   }
 
   private async loadExistingMessages(): Promise<void> {
-    if (!this.backendActor || !this.sessionId) return;
+    if (!this.sessionId) return;
 
     try {
-      const result = await this.backendActor.get_session_messages(this.sessionId);
-      if ('Ok' in result) {
-        const messages = result.Ok;
-        this.messageCount = messages.length;
-        
-        // Don't emit existing messages during initial load
-        // They should be loaded by the frontend component directly
-        console.log('ICPChatService: Loaded', messages.length, 'existing messages');
-      }
+      const messages = JSON.parse(localStorage.getItem(`chat_messages_${this.sessionId}`) || '[]');
+      this.messageCount = messages.length;
+      
+      // Don't emit existing messages during initial load
+      // They should be loaded by the frontend component directly
+      console.log('ICPChatService: Loaded', messages.length, 'existing messages from localStorage');
     } catch (error) {
       console.error('ICPChatService: Error loading existing messages:', error);
+    }
+  }
+
+  public getMessages(sessionId: string): ChatMessage[] {
+    try {
+      const messages = JSON.parse(localStorage.getItem(`chat_messages_${sessionId}`) || '[]');
+      return messages.sort((a: ChatMessage, b: ChatMessage) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+    } catch (error) {
+      console.error('Error getting messages:', error);
+      return [];
+    }
+  }
+
+  // Mark a module as complete
+  public markModuleComplete(sessionId: string, moduleId: number): void {
+    try {
+      const courseOutline = JSON.parse(localStorage.getItem(`course_outline_${sessionId}`) || '{}');
+      if (courseOutline && courseOutline.modules) {
+        const module = courseOutline.modules.find((m: any) => m.id === moduleId);
+        if (module) {
+          module.status = 'completed';
+          
+          // Mark next module as in_progress
+          const nextModule = courseOutline.modules.find((m: any) => m.id === moduleId + 1);
+          if (nextModule) {
+            nextModule.status = 'in_progress';
+          }
+          
+          localStorage.setItem(`course_outline_${sessionId}`, JSON.stringify(courseOutline));
+          console.log(`Module ${moduleId} marked as complete, next module set to in_progress`);
+        }
+      }
+    } catch (error) {
+      console.error('Error marking module as complete:', error);
     }
   }
 
@@ -110,40 +152,142 @@ class ICPChatService {
 
   public async sendMessage(content: string): Promise<boolean> {
     try {
-      if (!this.backendActor || !this.sessionId) {
-        console.error('ICPChatService: Not connected or session not available');
+      if (!this.sessionId) {
+        console.error('ICPChatService: Session not available');
         return false;
       }
 
       this.currentStatus = 'thinking';
       this.notifyStatusListeners();
 
-      // Send message to the backend first
-      const result = await this.backendActor.send_tutor_message(this.sessionId, content);
+      // Add user message to UI first
+      const userChunk: TutorMessageChunk = {
+        content: content,
+        isComplete: true,
+        timestamp: new Date().toISOString(),
+        sender: 'user'
+      };
+      this.notifyMessageListeners(userChunk);
+
+      // Store user message in localStorage
+      this.storeMessage({
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        session_id: this.sessionId,
+        sender: 'user',
+        content: content,
+        timestamp: new Date().toISOString()
+      });
+
+      // Get session data from localStorage
+      const sessions = JSON.parse(localStorage.getItem('tutor_sessions') || '[]');
+      const session = sessions.find((s: any) => s.public_id === this.sessionId);
       
-      if ('Ok' in result) {
-        // Add user message to UI only after successful backend call
-        const userChunk: TutorMessageChunk = {
-          content: content,
+      if (!session) {
+        throw new Error(`Session not found: ${this.sessionId}`);
+      }
+
+      // Add message to conversation memory
+      await conversationMemoryService.addMessage(
+        this.sessionId,
+        session.tutor_id,
+        'user',
+        content
+      );
+
+      // Get tutor data from localStorage or use default
+      const tutors = JSON.parse(localStorage.getItem('tutors') || '[]');
+      const tutor = tutors.find((t: any) => t.public_id === session.tutor_id) || {
+        expertise: ['general knowledge'],
+        teaching_style: 'casual',
+        personality: 'helpful'
+      };
+
+      this.currentStatus = 'responding';
+      this.notifyStatusListeners();
+
+      // Get conversation memory context
+      const conversationContext = await conversationMemoryService.getConversationContext(this.sessionId);
+      const conversationSummary = conversationContext 
+        ? conversationMemoryService.getConversationSummary(conversationContext)
+        : '';
+
+      // Get RAG context from knowledge base
+      let ragContext = '';
+      try {
+        const ragResult = await ragService.searchChunks(session.tutor_id, content, 3);
+        ragContext = ragResult.context;
+        console.log('RAG context retrieved:', ragContext);
+      } catch (error) {
+        console.log('No RAG context available or error:', error);
+        // Continue without RAG context
+      }
+
+      // Get course modules context
+      let courseContext = '';
+      try {
+        const courseOutline = JSON.parse(localStorage.getItem(`course_outline_${this.sessionId}`) || '{}');
+        if (courseOutline && courseOutline.modules) {
+          const currentModule = courseOutline.modules.find((m: any) => m.status === 'in_progress') || courseOutline.modules[0];
+          if (currentModule) {
+            courseContext = `Current Course Module: ${currentModule.title}\nDescription: ${currentModule.description}\nContent: ${currentModule.content}`;
+            console.log('Course context retrieved:', courseContext);
+            
+            // Update module status to in_progress if it's the first module
+            if (currentModule.status === 'pending') {
+              currentModule.status = 'in_progress';
+              localStorage.setItem(`course_outline_${this.sessionId}`, JSON.stringify(courseOutline));
+              console.log('Updated module status to in_progress:', currentModule.title);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('No course context available or error:', error);
+        // Continue without course context
+      }
+
+      // Combine all context (currently not sent over socket, reserved for future prompts)
+      const fullContext = [conversationSummary, ragContext, courseContext].filter(Boolean).join('\n\n');
+
+      // If websocket connected, forward user message to Python; otherwise use local fallback
+      if (aiSocketService.isSocketConnected()) {
+        aiSocketService.sendMessage(content);
+      } else {
+        const response = await groqService.generateTutorResponse(
+          content,
+          tutor.expertise || ['general knowledge'],
+          tutor.teaching_style || 'casual',
+          tutor.personality || 'helpful',
+          fullContext
+        );
+
+        // Add tutor response to UI & storage
+        this.notifyMessageListeners({
+          content: response,
           isComplete: true,
           timestamp: new Date().toISOString(),
-          sender: 'user'
-        };
-        this.notifyMessageListeners(userChunk);
-        
-        this.currentStatus = 'responding';
-        this.notifyStatusListeners();
-        
-        // Start polling for the response
-        this.pollForResponse();
-        
-        return true;
-      } else {
-        console.error('ICPChatService: Failed to send message:', result.Err);
-        this.currentStatus = 'error';
-        this.notifyStatusListeners();
-        return false;
+          sender: 'tutor'
+        });
+        this.storeMessage({
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          session_id: this.sessionId,
+          sender: 'tutor',
+          content: response,
+          timestamp: new Date().toISOString()
+        });
+        await conversationMemoryService.addMessage(
+          this.sessionId,
+          session.tutor_id,
+          'tutor',
+          response,
+          conversationContext?.currentTopic || undefined,
+          conversationContext?.difficultyLevel
+        );
       }
+      
+      this.currentStatus = 'idle';
+      this.notifyStatusListeners();
+      
+      return true;
     } catch (error) {
       console.error('ICPChatService: Error sending message:', error);
       this.currentStatus = 'error';
@@ -152,8 +296,18 @@ class ICPChatService {
     }
   }
 
+  private storeMessage(message: ChatMessage): void {
+    try {
+      const messages = JSON.parse(localStorage.getItem(`chat_messages_${this.sessionId}`) || '[]');
+      messages.push(message);
+      localStorage.setItem(`chat_messages_${this.sessionId}`, JSON.stringify(messages));
+    } catch (error) {
+      console.error('Error storing message:', error);
+    }
+  }
+
   private async pollForResponse(): Promise<void> {
-    if (!this.sessionId || !this.backendActor) return;
+    if (!this.sessionId) return;
 
     let attempts = 0;
     const maxAttempts = 30; // 30 seconds timeout

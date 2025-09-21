@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { Button } from '../shared';
-import { aiSocketService, TutorMessageChunk } from '../../services/aiSocketService';
+import aiSocketService, { TutorMessageChunk } from '../../services/aiSocketService';
 import api from '../../utils/apiClient';
 
 // Audio context for better audio management

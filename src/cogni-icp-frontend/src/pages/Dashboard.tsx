@@ -187,6 +187,28 @@ const Dashboard: React.FC = () => {
       setIsLoading(true);
       const createdTutor = await tutorService.createTutor(data, backendActor);
       setTutors(prev => [...prev, createdTutor]);
+      
+      // Automatically generate course outline for the new tutor
+      try {
+        const userSettings = {
+          learning_style: 'visual', // Default learning style
+          difficulty_level: 'intermediate', // Default difficulty
+          ai_interaction_style: 'friendly' // Default AI style
+        };
+        
+        const courseOutline = await tutorService.generateAiCourseOutline(
+          createdTutor.public_id, 
+          'Introduction to ' + createdTutor.expertise[0], // Use first expertise area
+          backendActor
+        );
+        
+        console.log('Auto-generated course outline:', courseOutline);
+        showToast('info', `Course outline generated for ${createdTutor.name}`);
+      } catch (courseError) {
+        console.warn('Failed to auto-generate course outline:', courseError);
+        // Don't show error to user, course generation is optional
+      }
+      
       setIsModalOpen(false);
       showToast('success', `Tutor "${createdTutor.name}" created successfully`);
       // Navigate to the tutor session page using the correct path

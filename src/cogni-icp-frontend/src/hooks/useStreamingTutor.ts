@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { aiSocketService, TutorMessageChunk, TutorStatus } from '../services/aiSocketService';
+import aiSocketService, { TutorMessageChunk, TutorStatus } from '../services/aiSocketService';
 import type { TutorMessage } from '../services/tutorService';
 
 export type { TutorMessage };

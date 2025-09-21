@@ -1,0 +1,6 @@
+Recommended flow by feature:
+Tutors (create/edit): Frontend uploads avatar/KB to Cloudinary/RAG via Python; Frontend stores tutor metadata in canister. No Rust↔Python call needed.
+Topic suggestions/course outlines/chat: Frontend calls Python; optional: store outline summary/hash in canister. No Rust↔Python call needed.
+RAG: Python owns vector DB; canister stores only pointers/stats if needed. No Rust↔Python call needed.
+Certificates: Python generates artifact and returns URL/hash → Frontend writes certificate metadata to canister. Optional: Rust verifies a small signed receipt via an outcall.
+Subscriptions/payments: Python handles provider webhooks; Frontend updates canister entitlements/credits ledger. No Rust↔Python call needed.

@@ -1,6 +1,6 @@
 use crate::models::{
     user::User,
-    tutor::{Tutor, TutorSession},
+    tutor::{Tutor, TutorSession, LearningProgress, LearningMetrics, ModuleCompletion, KnowledgeBaseFile},
     learning_path::LearningPath,
     connections::{UserConnection, ConnectionRequest},
     study_group::{
@@ -38,9 +38,14 @@ const TASK_MEMORY_ID: MemoryId = MemoryId::new(13);
 const USER_TASK_COMPLETION_MEMORY_ID: MemoryId = MemoryId::new(14);
 const MESSAGE_MEMORY_ID: MemoryId = MemoryId::new(15);
 const SESSION_MEMORY_ID: MemoryId = MemoryId::new(16);
+const CHAT_SESSION_MEMORY_ID: MemoryId = MemoryId::new(17);
+const CHAT_MESSAGE_MEMORY_ID: MemoryId = MemoryId::new(18);
+const LEARNING_PROGRESS_MEMORY_ID: MemoryId = MemoryId::new(19);
+const LEARNING_METRICS_MEMORY_ID: MemoryId = MemoryId::new(20);
+const MODULE_COMPLETION_MEMORY_ID: MemoryId = MemoryId::new(21);
+const KNOWLEDGE_BASE_FILE_MEMORY_ID: MemoryId = MemoryId::new(22);
 
-
-const ID_COUNTER_MEMORY_ID: MemoryId = MemoryId::new(20);
+const ID_COUNTER_MEMORY_ID: MemoryId = MemoryId::new(30);
 
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
@@ -62,6 +67,10 @@ struct IdCounters {
     user_task_completion: u64,
     message: u64,
     session: u64,
+    learning_progress: u64,
+    learning_metrics: u64,
+    module_completion: u64,
+    knowledge_base_file: u64,
 }
 
 impl Storable for IdCounters {
@@ -181,6 +190,48 @@ thread_local! {
         )
     );
 
+    // Stable storage for Chat Sessions
+    pub static CHAT_SESSIONS: RefCell<StableBTreeMap<String, crate::models::tutor::ChatSession, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(CHAT_SESSION_MEMORY_ID)),
+        )
+    );
+
+    // Stable storage for Chat Messages
+    pub static CHAT_MESSAGES: RefCell<StableBTreeMap<String, crate::models::tutor::ChatMessageList, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(CHAT_MESSAGE_MEMORY_ID)),
+        )
+    );
+
+    // Stable storage for Learning Progress
+    pub static LEARNING_PROGRESS: RefCell<StableBTreeMap<u64, LearningProgress, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LEARNING_PROGRESS_MEMORY_ID)),
+        )
+    );
+
+    // Stable storage for Learning Metrics
+    pub static LEARNING_METRICS: RefCell<StableBTreeMap<u64, LearningMetrics, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LEARNING_METRICS_MEMORY_ID)),
+        )
+    );
+
+    // Stable storage for Module Completions
+    pub static MODULE_COMPLETIONS: RefCell<StableBTreeMap<u64, ModuleCompletion, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MODULE_COMPLETION_MEMORY_ID)),
+        )
+    );
+
+    // Stable storage for Knowledge Base Files
+    pub static KNOWLEDGE_BASE_FILES: RefCell<StableBTreeMap<u64, KnowledgeBaseFile, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(KNOWLEDGE_BASE_FILE_MEMORY_ID)),
+        )
+    );
+
     // Stable cell for ID counters
     pub static ID_COUNTERS: RefCell<StableCell<IdCounters, Memory>> = RefCell::new(
         StableCell::init(
@@ -280,6 +331,26 @@ pub fn next_id(entity: &str) -> u64 {
                 current_counters.session += 1;
                 writer.set(current_counters).unwrap();
                 writer.get().session
+            }
+            "learning_progress" => {
+                current_counters.learning_progress += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().learning_progress
+            }
+            "learning_metrics" => {
+                current_counters.learning_metrics += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().learning_metrics
+            }
+            "module_completion" => {
+                current_counters.module_completion += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().module_completion
+            }
+            "knowledge_base_file" => {
+                current_counters.knowledge_base_file += 1;
+                writer.set(current_counters).unwrap();
+                writer.get().knowledge_base_file
             }
             _ => panic!("Unknown entity type for ID generation"),
         }

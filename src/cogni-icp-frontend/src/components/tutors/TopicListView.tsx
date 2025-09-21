@@ -47,7 +47,7 @@ interface TopicValidation {
 
 interface TopicListViewProps {
   tutor: Tutor;
-  tutorSessions: SessionInfo[];
+  tutorSessions: TutorSessionType[];
   topicListLoading: boolean;
   topicListError: string | null;
   topicSuggestions: TopicSuggestion[];
@@ -225,28 +225,28 @@ const TopicListView: React.FC<TopicListViewProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                {tutorSessions.map((sessionInfo) => (
+                {tutorSessions.map((session) => (
                   <div
-                    key={sessionInfo.session.public_id}
+                    key={session.public_id}
                     className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-primary-500 dark:hover:border-primary-500 transition-colors"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          {sessionInfo.course.topic}
+                          {session.topic}
                         </h3>
                         <div className="flex flex-wrap items-center text-sm text-gray-600 dark:text-gray-400 gap-4">
                           <span className="flex items-center">
                             <Clock className="w-4 h-4 mr-1" />
-                            {new Date(sessionInfo.session.created_at).toLocaleDateString()}
+                            {new Date(parseInt(session.created_at)).toLocaleDateString()}
                           </span>
                           <span className="flex items-center">
                             <BookOpen className="w-4 h-4 mr-1" />
-                            {sessionInfo.course.difficulty_level}
+                            {session.status}
                           </span>
                           <span className="flex items-center">
                             <Award className="w-4 h-4 mr-1" />
-                            {sessionInfo.progress.progress_percentage}% complete
+                            Last updated: {new Date(parseInt(session.updated_at)).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
@@ -254,7 +254,7 @@ const TopicListView: React.FC<TopicListViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            openDeleteModal(sessionInfo.session.public_id);
+                            openDeleteModal(session.public_id);
                           }}
                           className="inline-flex items-center justify-center h-8 px-3 text-sm border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                           title="Delete this session"
@@ -266,7 +266,7 @@ const TopicListView: React.FC<TopicListViewProps> = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/tutors/${tutor.public_id}/${sessionInfo.session.public_id}`);
+                            navigate(`/tutors/${tutor.public_id}/${session.public_id}`);
                           }}
                         >
                           Continue

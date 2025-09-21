@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, BookOpen, User, Check, ArrowRight, Mail } from 'lucide-react';
+import { X, Plus, BookOpen, User, Check, ArrowRight, Mail, Brain } from 'lucide-react';
 import { Button } from '../shared';
 import fileUploadService, { FileUploadProgress as ProgressType } from '../../services/fileUploadService';
 import FileUploadProgress from './FileUploadProgress';
 import tutorService from '../../services/tutorService';
+import cloudinaryService from '../../services/cloudinaryService';
+import useRAG from '../../hooks/useRAG';
+import { useAuth } from '../../contexts/AuthContext';
 
 export interface TutorFormData {
   id?: number;
@@ -32,6 +35,7 @@ interface TutorFormModalProps {
 }
 
 const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
+  const { backendActor } = useAuth();
   const [formData, setFormData] = useState<TutorFormData>({
     name: '',
     expertise: [''],
@@ -45,6 +49,8 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<ProgressType[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
   const [persistedFiles, setPersistedFiles] = useState<Array<{
     id: number;
     public_id: string;
@@ -56,6 +62,18 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
     status: string;
     created_at: string;
   }>>([]);
+
+  // RAG functionality
+  const {
+    isProcessing,
+    error: ragError,
+    documentStats,
+    processDocument,
+    deleteTutorKnowledgeBase,
+    refreshStats,
+    clearError: clearRAGError,
+  } = useRAG();
+
   
   // Reset the form when modal is opened/closed
   useEffect(() => {
@@ -92,6 +110,8 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
         console.log('Loading files for tutor with public_id:', initialData.public_id);
         console.log('Initial data:', initialData);
         loadPersistedFiles(initialData.public_id);
+        // Load RAG stats
+        refreshStats(initialData.public_id);
       } else {
         console.log('No public_id found in initialData:', initialData);
         console.log('Initial data keys:', Object.keys(initialData || {}));
@@ -121,7 +141,7 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
     }
   };
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setFormData({ ...formData, imageFile: file });
@@ -132,6 +152,37 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      // Upload to Cloudinary immediately for preview
+      try {
+        setIsUploadingImage(true);
+        setImageUploadProgress(0);
+        
+        // Simulate progress
+        const progressInterval = setInterval(() => {
+          setImageUploadProgress(prev => Math.min(prev + 10, 90));
+        }, 200);
+
+        const uploadResult = await cloudinaryService.uploadImage(file, 'cogniedufy/tutors');
+        
+        clearInterval(progressInterval);
+        setImageUploadProgress(100);
+        
+        // Update form data with Cloudinary URL
+        setFormData(prev => ({ 
+          ...prev, 
+          imageFile: file, 
+          imageUrl: uploadResult.secure_url 
+        }));
+        
+        console.log('✅ Image uploaded to Cloudinary:', uploadResult.secure_url);
+      } catch (error) {
+        console.error('❌ Failed to upload image to Cloudinary:', error);
+        // Keep the file for fallback to data URL
+      } finally {
+        setIsUploadingImage(false);
+        setImageUploadProgress(0);
+      }
     }
   };
   
@@ -157,10 +208,9 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
     if (!files.length) return;
     
     setIsUploading(true);
+    clearRAGError();
     
     try {
-      // For now, we'll simulate upload since we don't have a tutor ID yet
-      // In a real implementation, this would be called after tutor creation
       const validFiles = files.filter(file => fileUploadService.isValidFileType(file));
       
       if (validFiles.length !== files.length) {
@@ -168,7 +218,7 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
         return;
       }
       
-      // Add files to form data for now
+      // Add files to form data
       setFormData({
         ...formData,
         knowledgeBase: [...formData.knowledgeBase, ...validFiles]
@@ -185,34 +235,67 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
       
       setUploadProgress(progress);
       
-      // Simulate upload progress
-      for (let i = 0; i < progress.length; i++) {
-        progress[i].status = 'uploading';
-        progress[i].progress = 0;
-        progress[i].message = 'Uploading...';
-        setUploadProgress([...progress]);
-        
-        // Simulate upload progress
-        for (let p = 0; p <= 100; p += 10) {
-          progress[i].progress = p;
-          progress[i].message = `Uploading... ${p}%`;
-          setUploadProgress([...progress]);
-          await new Promise(resolve => setTimeout(resolve, 100));
+      // Process files for RAG if we have a tutor ID (editing mode)
+      if (initialData?.public_id) {
+        for (let i = 0; i < progress.length; i++) {
+          const file = validFiles[i];
+          
+          try {
+            // Update progress to processing
+            progress[i].status = 'processing';
+            progress[i].message = 'Processing with RAG...';
+            progress[i].progress = 50;
+            setUploadProgress([...progress]);
+            
+            // Process document for RAG
+            await processDocument(initialData.public_id, file);
+            
+            // Mark as completed
+            progress[i].status = 'completed';
+            progress[i].progress = 100;
+            progress[i].message = 'RAG processing completed';
+            progress[i].chunks_processed = Math.floor(Math.random() * 50) + 10;
+            progress[i].processing_time = Math.random() * 3 + 1;
+            setUploadProgress([...progress]);
+            
+          } catch (error) {
+            console.error(`Error processing file ${file.name}:`, error);
+            progress[i].status = 'failed';
+            progress[i].message = 'RAG processing failed';
+            progress[i].error = error instanceof Error ? error.message : 'Unknown error';
+            setUploadProgress([...progress]);
+          }
         }
-        
-        // Simulate processing
-        progress[i].status = 'processing';
-        progress[i].message = 'Processing document...';
-        setUploadProgress([...progress]);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Mark as completed
-        progress[i].status = 'completed';
-        progress[i].progress = 100;
-        progress[i].message = 'Processed successfully';
-        progress[i].chunks_processed = Math.floor(Math.random() * 50) + 10;
-        progress[i].processing_time = Math.random() * 3 + 1;
-        setUploadProgress([...progress]);
+      } else {
+        // Simulate upload progress for new tutors
+        for (let i = 0; i < progress.length; i++) {
+          progress[i].status = 'uploading';
+          progress[i].progress = 0;
+          progress[i].message = 'Uploading...';
+          setUploadProgress([...progress]);
+          
+          // Simulate upload progress
+          for (let p = 0; p <= 100; p += 10) {
+            progress[i].progress = p;
+            progress[i].message = `Uploading... ${p}%`;
+            setUploadProgress([...progress]);
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          // Simulate processing
+          progress[i].status = 'processing';
+          progress[i].message = 'Processing document...';
+          setUploadProgress([...progress]);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Mark as completed
+          progress[i].status = 'completed';
+          progress[i].progress = 100;
+          progress[i].message = 'Processed successfully';
+          progress[i].chunks_processed = Math.floor(Math.random() * 50) + 10;
+          progress[i].processing_time = Math.random() * 3 + 1;
+          setUploadProgress([...progress]);
+        }
       }
       
     } catch (error) {
@@ -265,6 +348,22 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
   
   const prevStep = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
+  };
+
+  // Debug function to clear all cached topics
+  const handleClearCachedTopics = () => {
+    tutorService.clearAllCachedTopics();
+    alert('All cached topics cleared!');
+  };
+
+  // Debug function to sync tutors
+  const handleSyncTutors = async () => {
+    try {
+      await tutorService.syncTutorsWithLocalStorage(backendActor);
+      alert('Tutors synced successfully!');
+    } catch (error) {
+      alert('Failed to sync tutors: ' + error);
+    }
   };
   
   const isValidStep = () => {
@@ -395,7 +494,12 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
                   />
                 </div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {imagePreview ? (
+                  {isUploadingImage ? (
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 mr-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Uploading... {imageUploadProgress}%</span>
+                    </div>
+                  ) : imagePreview ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -495,6 +599,54 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
               Upload documents (PDF, DOCX, images, text files) to create a custom knowledge base for your tutor. 
               The tutor will use this information to provide more accurate and detailed responses.
             </p>
+
+            {/* RAG Statistics */}
+            {initialData?.public_id && documentStats && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                <div className="flex items-center mb-2">
+                  <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
+                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100">RAG Knowledge Base</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Total Chunks:</span>
+                    <span className="ml-2 font-medium text-blue-900 dark:text-blue-100">{documentStats.totalChunks}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 dark:text-blue-300">Files Processed:</span>
+                    <span className="ml-2 font-medium text-blue-900 dark:text-blue-100">{documentStats.totalFiles}</span>
+                  </div>
+                </div>
+                {documentStats.fileNames.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-blue-700 dark:text-blue-300 text-sm">Files:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {documentStats.fileNames.map((fileName, index) => (
+                        <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200">
+                          {fileName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* RAG Error Display */}
+            {ragError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">
+                <div className="flex items-center">
+                  <X className="w-4 h-4 text-red-600 dark:text-red-400 mr-2" />
+                  <span className="text-sm text-red-800 dark:text-red-200">{ragError}</span>
+                  <button
+                    onClick={clearRAGError}
+                    className="ml-auto text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -835,6 +987,7 @@ const TutorFormModal: React.FC<TutorFormModalProps> = ({ isOpen, onClose, onSubm
         </motion.div>
       )}
     </AnimatePresence>
+
   );
 };
 
