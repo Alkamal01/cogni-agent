@@ -894,7 +894,6 @@ async fn call_groq_ai(prompt: &str) -> Result<String, String> {
     ic_cdk::println!("Calling Groq AI with prompt: {}", prompt);
     
     // Use the hardcoded API key
-    let api_key = "REDACTED_GROQ_KEY";
     
     let request_body = json!({
         "model": "llama-3.1-8b-instant",
