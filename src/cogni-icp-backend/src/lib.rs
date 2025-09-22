@@ -890,102 +890,10 @@ struct TopicSuggestionsResponse {
     suggestions: Vec<TopicSuggestion>,
 }
 
-async fn call_groq_ai(prompt: &str) -> Result<String, String> {
-    ic_cdk::println!("Calling Groq AI with prompt: {}", prompt);
-    
-    // Use the hardcoded API key
-    
-    let request_body = json!({
-        "model": "llama-3.1-8b-instant",
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "temperature": 0.7,
-        "max_tokens": 200,
-        "stream": false
-    });
-    
-    let request = CanisterHttpRequestArgument {
-        method: HttpMethod::POST,
-        url: "https://api.groq.com/openai/v1/chat/completions".to_string(),
-        headers: vec![
-            ic_cdk::api::management_canister::http_request::HttpHeader {
-                name: "Authorization".to_string(),
-                value: format!("Bearer {}", api_key),
-            },
-            ic_cdk::api::management_canister::http_request::HttpHeader {
-                name: "Content-Type".to_string(),
-                value: "application/json".to_string(),
-            },
-        ],
-        body: Some(serde_json::to_vec(&request_body).unwrap()),
-        max_response_bytes: Some(2000),
-        transform: None,
-    };
-    
-    // Enhanced retry logic with exponential backoff for IC consensus issues
-    let max_retries = 3; // Keep retries reasonable
-    for attempt in 1..=max_retries {
-        ic_cdk::println!("Groq API attempt {}/{}", attempt, max_retries);
-        
-        // Add delay between retries by making multiple small operations
-        if attempt > 1 {
-            ic_cdk::println!("Waiting before retry...");
-            // Create some work to introduce delay
-            let _ = (0..attempt * 1000).fold(0, |acc, _| acc + 1);
-        }
-        
-        match http_request(request.clone(), 5_000_000_000).await {
-            Ok((response,)) => {
-                if response.status == 200u32 {
-                    let response_text = String::from_utf8(response.body)
-                        .map_err(|e| format!("Failed to parse response body: {}", e))?;
-                    
-                    let groq_response: serde_json::Value = serde_json::from_str(&response_text)
-                        .map_err(|e| format!("Failed to parse Groq response: {}", e))?;
-                    
-                    if let Some(choices) = groq_response["choices"].as_array() {
-                        if let Some(first_choice) = choices.first() {
-                            if let Some(content) = first_choice["message"]["content"].as_str() {
-                                ic_cdk::println!("Groq AI response received, length: {}", content.len());
-                                return Ok(content.to_string());
-                            }
-                        }
-                    }
-                    
-                    return Err("Groq API returned no valid content".to_string());
-                } else {
-                    ic_cdk::println!("Groq API error: {}", response.status);
-                    if attempt == max_retries {
-                        return Err(format!("Groq API error: {}", response.status));
-                    }
-                }
-            }
-            Err((code, message)) => {
-                ic_cdk::println!("HTTP request failed (attempt {}/{}): {:?} - {}", attempt, max_retries, code, message);
-                
-                // Check if it's a consensus error specifically
-                let is_consensus_error = message.contains("SysTransient") || message.contains("consensus");
-                
-                if attempt < max_retries && is_consensus_error {
-                    ic_cdk::println!("Consensus error detected, retrying...");
-                    continue;
-                } else if attempt < max_retries {
-                    ic_cdk::println!("Non-consensus error, retrying...");
-                    continue;
-                } else {
-                    return Err(format!("HTTP request failed after {} attempts: {:?} - {}", max_retries, code, message));
-                }
-            }
-        }
-    }
-    
-    // If all retries failed, provide a fallback response
-    ic_cdk::println!("Groq API failed after all retries, using fallback response");
-    Ok(format!("I apologize, but I'm experiencing technical difficulties with my AI service right now. However, I can still help you with your question: \"{}\" Please try asking me again in a moment, or feel free to rephrase your question.", prompt))
+async fn call_groq_ai(_prompt: &str) -> Result<String, String> {
+    // External AI calls are disabled on the canister. Return a simple message
+    // so frontend fallbacks or Python backend can handle AI instead.
+    Ok("AI service is handled by the Python backend now.".to_string())
 }
 
 // Enhanced AI functions for comprehensive tutoring
