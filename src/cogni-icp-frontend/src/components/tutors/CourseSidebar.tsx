@@ -56,7 +56,7 @@ const CourseSidebar: React.FC<CourseSidebarProps> = ({
   const navigate = useNavigate();
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-40 w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex ${isCourseSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+    <aside className={`fixed inset-y-0 left-0 z-[220] w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex ${isCourseSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
       {/* Sidebar Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
         {/* Close button for mobile view of course sidebar */}

@@ -58,6 +58,14 @@ export const adminApi = {
     return handleResponse(response);
   },
 
+  // Analytics data
+  async getAnalytics() {
+    const response = await fetch(`${API_BASE_URL}/analytics`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(response);
+  },
+
   // User management
   async getUsers(params: {
     page?: number;
@@ -153,12 +161,12 @@ export const adminApi = {
   },
 
   getTasks: async () => {
-    const response = await fetch(`http://localhost:5000/api/tasks/admin`, { headers: getAuthHeaders() });
+    const response = await fetch(`${API_BASE_URL.replace('/admin', '')}/tasks/admin`, { headers: getAuthHeaders() });
     return handleResponse(response);
   },
 
   createTask: async (taskData: any) => {
-    const response = await fetch(`http://localhost:5000/api/tasks/admin`, {
+    const response = await fetch(`${API_BASE_URL.replace('/admin', '')}/tasks/admin`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(taskData)
@@ -167,7 +175,7 @@ export const adminApi = {
   },
 
   updateTask: async (taskId: string, taskData: any) => {
-    const response = await fetch(`http://localhost:5000/api/tasks/admin/${taskId}`, {
+    const response = await fetch(`${API_BASE_URL.replace('/admin', '')}/tasks/admin/${taskId}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(taskData)
@@ -176,7 +184,7 @@ export const adminApi = {
   },
 
   deleteTask: async (taskId: string) => {
-    const response = await fetch(`http://localhost:5000/api/tasks/admin/${taskId}`, {
+    const response = await fetch(`${API_BASE_URL.replace('/admin', '')}/tasks/admin/${taskId}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });

@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, BarChart2, Plus, Check, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../shared';
+import studyGroupService from '../../services/studyGroupService';
+import { useToast } from '../../hooks/useToast';
 
 interface GroupPollsProps {
   isOpen: boolean;
   onClose: () => void;
-  groupId: string | number;
+  groupId: string | undefined;
   groupName: string;
+  polls?: any[];
+  onPollsUpdate?: () => void;
 }
 
 interface PollOption {
@@ -22,7 +26,7 @@ interface Poll {
   options: PollOption[];
   createdBy: string;
   createdAt: Date;
-  expiresAt?: Date;
+  expiresAt?: Date | null;
   isActive: boolean;
   totalVotes: number;
   hasVoted?: boolean;
@@ -33,8 +37,12 @@ const GroupPolls: React.FC<GroupPollsProps> = ({
   isOpen,
   onClose,
   groupId,
-  groupName
+  groupName,
+  polls: propPolls = [],
+  onPollsUpdate
 }) => {
+  const { toast } = useToast();
+
   // State for creating a new poll
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
   const [newPollQuestion, setNewPollQuestion] = useState('');
@@ -42,40 +50,33 @@ const GroupPolls: React.FC<GroupPollsProps> = ({
   const [newOptionText, setNewOptionText] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
 
-  // Mock polls data
-  const [polls, setPolls] = useState<Poll[]>([
-    {
-      id: '1',
-      question: 'What topic should we focus on for our next study session?',
-      options: [
-        { id: '1-1', text: 'Neural Networks', votes: 3 },
-        { id: '1-2', text: 'Natural Language Processing', votes: 5 },
-        { id: '1-3', text: 'Computer Vision', votes: 2 }
-      ],
-      createdBy: 'Jane Smith',
-      createdAt: new Date(Date.now() - 86400000 * 2), // 2 days ago
-      expiresAt: new Date(Date.now() + 86400000 * 1), // 1 day from now
-      isActive: true,
-      totalVotes: 10,
-      hasVoted: true,
-      selectedOptionId: '1-2'
-    },
-    {
-      id: '2',
-      question: 'When should we schedule our weekly meetup?',
-      options: [
-        { id: '2-1', text: 'Monday, 6PM', votes: 2 },
-        { id: '2-2', text: 'Wednesday, 7PM', votes: 4 },
-        { id: '2-3', text: 'Friday, 5PM', votes: 3 },
-        { id: '2-4', text: 'Saturday, 11AM', votes: 6 }
-      ],
-      createdBy: 'John Doe',
-      createdAt: new Date(Date.now() - 86400000 * 5), // 5 days ago
-      expiresAt: new Date(Date.now() - 86400000 * 2), // 2 days ago
-      isActive: false,
-      totalVotes: 15
+  // Use polls from props or empty array
+  const [polls, setPolls] = useState<Poll[]>([]);
+
+  // Update polls when propPolls changes
+  useEffect(() => {
+    if (propPolls && propPolls.length > 0) {
+      const formattedPolls = propPolls.map(poll => ({
+        id: poll.id.toString(),
+        question: poll.question,
+        options: poll.options.map((option: any) => ({
+          id: option.id.toString(),
+          text: option.text,
+          votes: option.vote_count || 0
+        })),
+        createdBy: poll.creator?.username || 'Unknown',
+        createdAt: new Date(poll.created_at),
+        expiresAt: poll.expires_at ? new Date(poll.expires_at) : null,
+        isActive: poll.is_active,
+        totalVotes: poll.total_votes || 0,
+        hasVoted: poll.user_vote_id !== null,
+        selectedOptionId: poll.user_vote_id?.toString()
+      }));
+      setPolls(formattedPolls);
+    } else {
+      setPolls([]);
     }
-  ]);
+  }, [propPolls]);
 
   const handleAddOption = () => {
     if (newPollOptions.length >= 8) {
@@ -108,28 +109,49 @@ const GroupPolls: React.FC<GroupPollsProps> = ({
     setNewPollOptions(updatedOptions);
   };
 
-  const handleCreatePoll = () => {
+  const handleCreatePoll = async () => {
     if (!newPollQuestion.trim() || newPollOptions.some(opt => !opt.trim())) {
       return; // Validate all fields are filled
     }
-    
-    const newPoll: Poll = {
-      id: `poll-${Date.now()}`,
-      question: newPollQuestion.trim(),
-      options: newPollOptions.map((text, index) => ({
-        id: `new-${Date.now()}-${index}`,
-        text: text.trim(),
-        votes: 0
-      })),
-      createdBy: 'You', // In a real app, this would be the current user's name
-      createdAt: new Date(),
-      expiresAt: expiryDate ? new Date(expiryDate) : undefined,
-      isActive: true,
-      totalVotes: 0
-    };
-    
-    setPolls([newPoll, ...polls]);
-    resetPollCreation();
+
+    if (!groupId) {
+      toast({
+        title: 'Error',
+        description: 'Group ID is missing.',
+        variant: 'error'
+      });
+      return;
+    }
+
+    try {
+      const pollData = {
+        question: newPollQuestion.trim(),
+        options: newPollOptions.filter(opt => opt.trim()).map(opt => opt.trim()),
+        expires_at: expiryDate || undefined
+      };
+
+      await studyGroupService.createPoll(String(groupId!), pollData);
+
+      // Refresh polls
+      if (onPollsUpdate) {
+        onPollsUpdate();
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Poll created successfully!',
+        variant: 'success'
+      });
+
+      resetPollCreation();
+    } catch (error) {
+      console.error('Error creating poll:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create poll. Please try again.',
+        variant: 'error'
+      });
+    }
   };
 
   const resetPollCreation = () => {
@@ -139,36 +161,37 @@ const GroupPolls: React.FC<GroupPollsProps> = ({
     setExpiryDate('');
   };
 
-  const handleVote = (pollId: string, optionId: string) => {
-    setPolls(polls.map(poll => {
-      if (poll.id === pollId) {
-        // Update vote count for the selected option
-        const updatedOptions = poll.options.map(option => {
-          if (option.id === optionId) {
-            return { ...option, votes: option.votes + 1 };
-          }
-          
-          // If already voted, remove vote from previous option
-          if (poll.hasVoted && option.id === poll.selectedOptionId) {
-            return { ...option, votes: Math.max(0, option.votes - 1) };
-          }
-          
-          return option;
-        });
-        
-        // Calculate new total votes
-        const newTotalVotes = poll.hasVoted ? poll.totalVotes : poll.totalVotes + 1;
-        
-        return {
-          ...poll,
-          options: updatedOptions,
-          totalVotes: newTotalVotes,
-          hasVoted: true,
-          selectedOptionId: optionId
-        };
+  const handleVote = async (pollId: string, optionId: string) => {
+    if (!groupId) {
+      toast({
+        title: 'Error',
+        description: 'Group ID is missing.',
+        variant: 'error'
+      });
+      return;
+    }
+
+    try {
+      await studyGroupService.votePoll(String(groupId!), parseInt(pollId), parseInt(optionId));
+
+      // Refresh polls to get updated vote counts
+      if (onPollsUpdate) {
+        onPollsUpdate();
       }
-      return poll;
-    }));
+
+      toast({
+        title: 'Success',
+        description: 'Your vote has been recorded!',
+        variant: 'success'
+      });
+    } catch (error) {
+      console.error('Error voting on poll:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to vote on poll. Please try again.',
+        variant: 'error'
+      });
+    }
   };
 
   const calculatePercentage = (votes: number, totalVotes: number) => {

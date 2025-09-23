@@ -218,7 +218,7 @@ const FileSharing: React.FC<FileSharingProps> = ({ sessionId, groupId }) => {
           size: file.size,
           uploaded_by: {
             id: user?.id?.toString() || '0',
-            name: user?.username || 'Anonymous'
+            name: user?.name || 'Anonymous'
           },
           created_at: new Date().toISOString(),
           url: URL.createObjectURL(file),

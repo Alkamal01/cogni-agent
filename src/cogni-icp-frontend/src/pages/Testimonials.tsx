@@ -144,7 +144,7 @@ const SuccessStory: React.FC<SuccessStoryProps> = ({
         
         <div className="flex justify-end">
           <Link
-            to="/register"
+            to="/auth/register"
             className="inline-flex items-center text-primary-600 dark:text-primary-400 font-medium"
           >
             Start your journey <ChevronDown className="ml-2 h-5 w-5 rotate-270" style={{ transform: 'rotate(-90deg)' }} />
@@ -439,7 +439,7 @@ const Testimonials: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-primary-600 bg-white hover:bg-gray-50"
               >
                 Start Free Trial

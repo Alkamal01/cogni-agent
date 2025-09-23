@@ -243,7 +243,7 @@ const TestimonialsSection: React.FC = () => {
             Ready to transform your learning journey?
           </h3>
           <Link
-            to="/register"
+            to="/auth/register"
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 transition-colors duration-300"
           >
             Get Started Free

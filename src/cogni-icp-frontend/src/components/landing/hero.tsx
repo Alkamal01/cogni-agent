@@ -7,12 +7,12 @@ const HeroSection: React.FC = () => {
   const navigate = useNavigate();
   
   const handleGetStarted = () => {
-    navigate('/login');
+    navigate('/auth/register');
   };
 
   const handleLearnMore = () => {
-    // Scroll to features section or navigate to about page
-    const featuresSection = document.getElementById('differentiators');
+    // Scroll to features section
+    const featuresSection = document.getElementById('features');
     if (featuresSection) {
       featuresSection.scrollIntoView({ behavior: 'smooth' });
     }
@@ -32,19 +32,20 @@ const HeroSection: React.FC = () => {
             {/* Main Heading */}
             <div className="mb-6">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight text-gray-900 dark:text-white">
-                <span className="text-blue-600 dark:text-blue-400">Building Knowledge</span>
+                <span className="text-blue-600 dark:text-blue-400">Learn Smarter,</span>
                 <br />
-                <span>Through Smart Learning</span>
+                <span>Not Harder</span>
               </h1>
             </div>
             
             {/* Description */}
             <div className="mb-8">
               <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                We're revolutionizing education with AI-powered solutions. Join us in 
-                creating personalized learning experiences and achieving academic excellence.
+                Experience AI-powered personalized learning that adapts to your cognitive strengths. 
+                Our intelligent platform creates dynamic learning paths that evolve with you in real-time.
               </p>
             </div>
+
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -54,7 +55,7 @@ const HeroSection: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Start Your Journey
+                Start Learning Free
                 <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </motion.button>
               
@@ -64,8 +65,38 @@ const HeroSection: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Learn More
+                See How It Works
               </motion.button>
+            </div>
+
+            {/* Social Proof */}
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-8">
+              <div className="flex items-center space-x-2">
+                <div className="flex -space-x-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">A</span>
+                  </div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">B</span>
+                  </div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">C</span>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  <span className="font-semibold">10,000+</span> students learning smarter
+                </div>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="flex text-yellow-400">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                    </svg>
+                  ))}
+                </div>
+                <span className="text-sm text-gray-600 dark:text-gray-300 ml-1">4.9/5 rating</span>
+              </div>
             </div>
           </motion.div>
 
@@ -112,49 +143,49 @@ const HeroSection: React.FC = () => {
               
               {/* Floating feature icons */}
               
-              {/* AI Tutors */}
+              {/* Cognitive Assessment */}
               <motion.div 
                 className="absolute top-4 right-0 sm:top-6 sm:-right-4 flex items-center space-x-2"
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
               >
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-gray-800 rounded-full shadow-xl flex items-center justify-center border border-gray-100 dark:border-gray-700">
-                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                  <Brain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="hidden sm:block bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">AI Tutors</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Cognitive AI</p>
                 </div>
               </motion.div>
 
-              {/* Study Groups */}
+              {/* Real-time Adaptation */}
               <motion.div 
                 className="absolute bottom-4 left-0 sm:bottom-6 sm:-left-4 flex items-center space-x-2"
                 animate={{ y: [0, 8, 0] }}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
               >
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-gray-800 rounded-full shadow-xl flex items-center justify-center border border-gray-100 dark:border-gray-700">
-                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
+                  <Target className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
                 </div>
                 <div className="hidden sm:block bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Study Groups</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Adaptive Learning</p>
                 </div>
               </motion.div>
               
-              {/* Gamified Learning */}
+              {/* Personalized Paths */}
               <motion.div 
                 className="absolute top-8 left-0 sm:top-12 sm:-left-10 flex items-center space-x-2"
                 animate={{ y: [0, -6, 0], x: [0, 4, 0] }}
                 transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
               >
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-gray-800 rounded-full shadow-xl flex items-center justify-center border border-gray-100 dark:border-gray-700">
-                  <Target className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
+                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
                 </div>
                 <div className="hidden sm:block bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Gamified Learning</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Personalized Paths</p>
                 </div>
               </motion.div>
 
-              {/* Learning Paths */}
+              {/* Smart Analytics */}
               <motion.div 
                 className="absolute bottom-8 right-0 sm:bottom-12 sm:-right-10 flex items-center space-x-2"
                 animate={{ y: [0, 6, 0], x: [0, -4, 0] }}
@@ -164,7 +195,7 @@ const HeroSection: React.FC = () => {
                   <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
                 </div>
                 <div className="hidden sm:block bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Learning Paths</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Smart Analytics</p>
                 </div>
               </motion.div>
 

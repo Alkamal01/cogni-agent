@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import connectionService from '../services/connectionService';
 import apiService from '../services/apiService';
-import MockSuiWallet from '../components/shared/MockSuiWallet';
+
 
 // Types
 interface UserProfileData {
@@ -388,7 +388,7 @@ const UserProfile: React.FC = () => {
 
         {/* Right Column - Detailed Info */}
         <div className="md:col-span-2 space-y-6">
-          <MockSuiWallet />
+
           <Card className="p-6">
             <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
               <Brain className="w-5 h-5 text-primary-500 mr-2" />

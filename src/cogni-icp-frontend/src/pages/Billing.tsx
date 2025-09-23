@@ -101,9 +101,9 @@ const PlanCard: React.FC<PlanCardProps> = ({
     
     <div className="mb-8">
       <span className="text-4xl font-bold text-gray-900 dark:text-white">
-        {price === 0 ? 'Free' : `₦${price.toLocaleString()}`}
+        {name === 'Enterprise' ? 'Contact Us' : price === 0 ? 'Free' : `₦${price.toLocaleString()}`}
       </span>
-      {price !== 0 && <span className="text-gray-500 dark:text-gray-400">/month</span>}
+      {price !== 0 && name !== 'Enterprise' && <span className="text-gray-500 dark:text-gray-400">/month</span>}
     </div>
     
     <div className="space-y-4 mb-8 flex-grow">
@@ -124,7 +124,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       onClick={onSubscribe}
       animated={true}
     >
-      {buttonText || (isCurrentPlan ? 'Current Plan' : name === 'Enterprise' ? 'Contact Sales' : `Choose ${name}`)}
+      {buttonText || (isCurrentPlan ? 'Current Plan' : `Choose ${name}`)}
     </Button>
   </motion.div>
 );
@@ -137,28 +137,44 @@ const Billing: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [plansData, subscriptionData] = await Promise.all([
-          billingService.getPlans(),
-          billingService.getSubscription()
-        ]);
-        setPlans(plansData);
-        setSubscription(subscriptionData);
-      } catch (error) {
-        showToast('error', 'Failed to load billing information');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchData = async () => {
+    try {
+      const [plansData, subscriptionData] = await Promise.all([
+        billingService.getPlans(),
+        billingService.getSubscription()
+      ]);
+      setPlans(plansData);
+      setSubscription(subscriptionData);
+    } catch (error) {
+      showToast('error', 'Failed to load billing information');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchData();
   }, [showToast]);
+
+  const handleRefreshSubscription = async () => {
+    try {
+      setLoading(true);
+      // Refresh both user data and subscription data
+      await Promise.all([
+        refreshUserData(),
+        fetchData()
+      ]);
+      showToast('success', 'Subscription data refreshed');
+    } catch (error) {
+      showToast('error', 'Failed to refresh subscription data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectPlan = (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
@@ -194,8 +210,43 @@ const Billing: React.FC = () => {
       }
       
       if (response.payment_url) {
-        // Redirect to Paystack payment page
-        window.location.href = response.payment_url;
+        // Try Paystack Inline; fallback to redirect on failure
+        try {
+          await billingService.initializePaystackPayment({
+          email: user?.email || '',
+          amount: response.amount_kobo || planToSubscribe.price_naira * 100, // Use backend amount or convert naira to kobo
+          ref: response.reference || `cogniedufy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          access_code: response.access_code,
+          onSuccess: async (paystackResponse) => {
+            try {
+              // Verify payment on backend
+              const verifyResponse = await billingService.verifyPayment(paystackResponse.reference);
+              if (verifyResponse.success) {
+                setSubscription(verifyResponse.subscription || null);
+                showToast('success', `Successfully subscribed to ${planToSubscribe.name} plan!`);
+                handleClosePaymentModal();
+                refreshUserData();
+                handleRefreshSubscription();
+              } else {
+                showToast('error', 'Payment verification failed');
+              }
+            } catch (error) {
+              console.error('Payment verification error:', error);
+              showToast('error', 'Payment verification failed');
+            } finally {
+              setProcessingPayment(false);
+            }
+          },
+          onCancel: () => {
+            showToast('info', 'Payment cancelled');
+            setProcessingPayment(false);
+          }
+          });
+        } catch (e) {
+          console.error('Inline Paystack failed, falling back to redirect:', e);
+          window.location.href = response.payment_url;
+          return;
+        }
       } else if (response.subscription) {
         // Free plan or successful upgrade - update subscription
         setSubscription(response.subscription);
@@ -243,7 +294,19 @@ const Billing: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Billing & Subscription</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Billing & Subscription</h1>
+        <button
+          onClick={handleRefreshSubscription}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+        >
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
       
               {/* Current subscription summary */}
       {subscription && (
@@ -310,14 +373,16 @@ const Billing: React.FC = () => {
             const popular = plan.name === 'Pro';
             
             // Determine button text based on current subscription
-            let buttonText = `Choose ${plan.name}`;
+            let buttonText = plan.name === 'Enterprise' ? 'Contact Sales' : `Choose ${plan.name}`;
             if (isCurrentPlan) {
               buttonText = 'Current Plan';
             } else if (subscription && subscription.status === 'active') {
               // User has active subscription to different plan
               const currentPlanPrice = subscription.plan.price_naira;
               const newPlanPrice = plan.price_naira;
-              if (newPlanPrice > currentPlanPrice) {
+              if (plan.name === 'Enterprise') {
+                buttonText = 'Contact Sales';
+              } else if (newPlanPrice > currentPlanPrice) {
                 buttonText = `Upgrade to ${plan.name}`;
               } else if (newPlanPrice < currentPlanPrice) {
                 buttonText = `Downgrade to ${plan.name}`;
@@ -331,7 +396,7 @@ const Billing: React.FC = () => {
                 key={plan.id}
                 name={plan.name}
                 icon={icon}
-                price={plan.price_naira / 100} // Convert from kobo to naira
+                price={plan.price_naira} // Price already in naira
                 description={
                   plan.name === 'Free' 
                     ? "Perfect for trying out the platform's features"
@@ -372,7 +437,7 @@ const Billing: React.FC = () => {
                 <div className="flex justify-between mb-2">
                   <span className="text-gray-600 dark:text-gray-300">{selectedPlan.name} Plan (monthly)</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    {selectedPlan.price_naira === 0 ? 'Free' : `₦${(selectedPlan.price_naira / 100).toLocaleString()}`}
+                    {selectedPlan.price_naira === 0 ? 'Free' : `₦${selectedPlan.price_naira.toLocaleString()}`}
                     {selectedPlan.price_naira > 0 && <span className="text-sm text-gray-500 dark:text-gray-400">/month</span>}
                   </span>
                 </div>
@@ -380,7 +445,7 @@ const Billing: React.FC = () => {
                 <div className="flex justify-between font-bold">
                   <span className="text-gray-900 dark:text-white">Total</span>
                   <span className="text-gray-900 dark:text-white">
-                    {selectedPlan.price_naira === 0 ? 'Free' : `₦${(selectedPlan.price_naira / 100).toLocaleString()}`}
+                    {selectedPlan.price_naira === 0 ? 'Free' : `₦${selectedPlan.price_naira.toLocaleString()}`}
                     {selectedPlan.price_naira > 0 && <span className="text-sm font-normal text-gray-500 dark:text-gray-400">/month</span>}
                   </span>
                 </div>

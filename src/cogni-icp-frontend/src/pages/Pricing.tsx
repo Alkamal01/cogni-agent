@@ -63,7 +63,7 @@ const PricingTier: React.FC<PricingTierProps> = ({
     </ul>
     
     <Link
-      to="/register"
+      to="/auth/register"
       className={`inline-flex justify-center items-center px-6 py-3 rounded-md text-base font-medium shadow-sm ${
         popular 
           ? 'bg-primary-600 hover:bg-primary-700 text-white' 
@@ -128,10 +128,12 @@ const Pricing: React.FC = () => {
       price: 'Free',
       description: 'For individuals starting their learning journey.',
       features: [
-        '5 AI tutor sessions per month',
+        '3 AI tutor sessions per month',
         'Basic personalized learning paths',
-        'Access to public study groups',
-        'Standard analytics',
+        'Join up to 2 study groups',
+        'Basic learning analytics',
+        '1GB storage',
+        'Community support'
       ],
       cta: 'Get Started',
       popular: false,
@@ -139,30 +141,21 @@ const Pricing: React.FC = () => {
     {
       name: 'Pro',
       price: '₦20,000',
-      description: 'For dedicated learners who want to accelerate their growth.',
+      description: 'For dedicated learners, teams, and organizations.',
       features: [
         'Unlimited AI tutor sessions',
+        'Custom-branded AI tutors',
         'Advanced personalized learning paths',
-        'Create and join study groups',
-        'Detailed performance analytics',
-        'Priority support',
+        'Create and join unlimited study groups',
+        'Team management and reporting',
+        'Advanced performance analytics',
+        'API access for integrations',
+        'Unlimited storage',
+        'Priority support & dedicated account manager',
+        'SLA and premium support'
       ],
       cta: 'Upgrade to Pro',
       popular: true,
-    },
-    {
-      name: 'Enterprise',
-      price: 'Custom',
-      description: 'For organizations and educational institutions.',
-      features: [
-        'Custom-branded AI tutors',
-        'Team management and reporting',
-        'API access for integrations',
-        'Dedicated account manager',
-        'SLA and premium support',
-      ],
-      cta: 'Contact Sales',
-      popular: false,
     },
   ];
   
@@ -211,7 +204,7 @@ const Pricing: React.FC = () => {
           </motion.div>
           
           {/* Main pricing grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16 max-w-4xl mx-auto">
             {pricingTiers.map((tier, index) => (
               <PricingTier
                 key={tier.name}
@@ -253,68 +246,65 @@ const Pricing: React.FC = () => {
                   <tr>
                     <th className="py-5 px-6 text-sm font-semibold text-gray-900 dark:text-white">Feature</th>
                     <th className="py-5 px-6 text-sm font-semibold text-gray-900 dark:text-white text-center">Free</th>
-                    <th className="py-5 px-6 text-sm font-semibold text-gray-900 dark:text-white text-center border-x border-gray-200 dark:border-gray-600">Pro</th>
-                    <th className="py-5 px-6 text-sm font-semibold text-gray-900 dark:text-white text-center">Enterprise</th>
+                    <th className="py-5 px-6 text-sm font-semibold text-gray-900 dark:text-white text-center">Pro</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {/* AI Tutoring */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">AI Tutor</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">3</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600">Unlimited</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Unlimited & Custom</td>
+                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">AI Tutor Sessions</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">3 per month</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Unlimited</td>
+                  </tr>
+                  {/* Custom Tutors */}
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Custom-Branded AI Tutors</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><CheckCircle className="h-5 w-5 mx-auto text-green-500" /></td>
                   </tr>
                   {/* Learning Paths */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Personalized Learning Paths</td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Basic</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600">Advanced</td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Advanced</td>
                   </tr>
                   {/* Study Groups */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Study Groups</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Join 3 public groups</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600">Create & Join</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Team-based groups</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Join up to 2</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Create & Join Unlimited</td>
+                  </tr>
+                  {/* Team Management */}
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Team Management & Reporting</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><CheckCircle className="h-5 w-5 mx-auto text-green-500" /></td>
                   </tr>
                   {/* Analytics */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Analytics</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Standard</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600">Detailed</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Basic</td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Advanced Reporting</td>
-                  </tr>
-                  {/* Support */}
-                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Support</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Community</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600">Priority</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Dedicated Manager</td>
                   </tr>
                   {/* API Access */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">API Access</td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><CheckCircle className="h-5 w-5 mx-auto text-green-500" /></td>
                   </tr>
-                  {/* Custom Branding */}
+                  {/* Support */}
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Custom Branding</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center border-x border-gray-200 dark:border-gray-600"><XCircle className="h-5 w-5 mx-auto text-red-400" /></td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center"><CheckCircle className="h-5 w-5 mx-auto text-green-500" /></td>
+                    <td className="py-4 px-6 font-medium text-gray-900 dark:text-white">Support</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Community</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Priority & Dedicated Manager</td>
                   </tr>
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 dark:bg-gray-700/50">
-                    <td className="py-4 px-6 font-semibold text-gray-900 dark:text-white text-center">
+                    <td className="py-4 px-6 font-semibold text-gray-900 dark:text-white">
                       Storage
                     </td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">5GB</td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">50GB</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">1GB</td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-center">Unlimited</td>
                   </tr>
                 </tfoot>
@@ -384,7 +374,7 @@ const Pricing: React.FC = () => {
                 Contact Support
               </Link>
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center justify-center px-6 py-3 border border-white text-base font-medium rounded-md text-white hover:bg-primary-700"
               >
                 Get Started Free

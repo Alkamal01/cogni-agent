@@ -73,7 +73,7 @@ const LandingHeader: React.FC = () => {
             {/* Desktop Get Started Button */}
             <div className="hidden md:flex ml-8">
               <Link
-                to="/login"
+                to="/auth/register"
                 className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg transition-colors duration-200"
               >
                 Get Started
@@ -114,7 +114,7 @@ const LandingHeader: React.FC = () => {
             
             <div className="pt-4 border-t border-gray-200">
               <Link
-                to="/login"
+                to="/auth/register"
                 onClick={() => setIsMenuOpen(false)}
                 className="block bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg text-center transition-colors duration-200"
               >

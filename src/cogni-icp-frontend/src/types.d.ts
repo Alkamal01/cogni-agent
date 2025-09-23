@@ -43,6 +43,8 @@ declare module 'lucide-react' {
   export const Lock: any;
   export const Facebook: any;
   export const Github: any;
+  export const Trash: any;
+  export const RotateCcw: any;
 }
 
 declare module 'react-intersection-observer' {

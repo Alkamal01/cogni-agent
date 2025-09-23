@@ -54,7 +54,7 @@ class ChatService {
       // Create socket connection with token
       this.socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
         query: { token },
-        transports: ['websocket', 'polling'], // Allow fallback to polling if websocket fails
+        transports: ['polling', 'websocket'], // Prefer polling first to avoid ws interrupt during page load
         reconnection: false, // We'll handle reconnection ourselves
         path: '/socket.io',
         withCredentials: true

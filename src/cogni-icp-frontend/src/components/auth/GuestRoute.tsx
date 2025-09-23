@@ -4,13 +4,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Loading } from '../shared';
 
 const GuestRoute = () => {
-    const { isAuthenticated, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
-        return <Loading />;
+    return <Loading fullScreen />;
   }
 
-    if (isAuthenticated) {
+  if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 

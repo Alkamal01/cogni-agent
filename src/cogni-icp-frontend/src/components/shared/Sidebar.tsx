@@ -1,21 +1,21 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Home, 
-  Users, 
-  BookOpen, 
-  MessageSquare, 
+import {
+  Home,
+  Users,
   BarChart2,
   Award,
   CreditCard,
   ArrowRight,
   GraduationCap,
+  Zap,
   X // For the close button
 } from 'lucide-react';
-import { FaChevronLeft, FaChevronRight } from 'react-icons/fa'; // Import from react-icons
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import logo from '../../cognilogo.png';
 import logo2 from '../../logo2.png';
 
@@ -48,18 +48,24 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { subscription } = useSubscription();
+
+
+
   const mainNavItems = [
     { name: 'Dashboard', icon: Home, path: '/dashboard' },
     { name: 'Tutors', icon: GraduationCap, path: '/tutors' },
-    { name: 'Study Groups', icon: Users, path: '/groups' },
-    { name: 'Studio', icon: BookOpen, path: '/learning-paths' },
+    // { name: 'Study Sets', icon: Zap, path: '/study-sets' },
+    // { name: 'Study Groups', icon: Users, path: '/groups' },
+    // { name: 'Learning Paths', icon: BookOpen, path: '/learning-paths' },
     { name: 'Analytics', icon: BarChart2, path: '/analytics' },
-    { name: 'Achievements', icon: Award, path: '/achievements' }
+    { name: 'Achievements', icon: Award, path: '/achievements' },
+    // { name: 'Activities', icon: Clock, path: '/activities' }
   ];
 
   return (
     <motion.div
-      className={`fixed inset-y-0 left-0 z-40 flex-shrink-0 transform transition-all duration-300 ease-in-out 
+      className={`fixed inset-y-0 left-0 z-[220] flex-shrink-0 transform transition-all duration-300 ease-in-out 
                   lg:relative lg:translate-x-0 flex
                   ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 lg:w-20'}`}
       initial="hidden"
@@ -72,7 +78,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
           <div className={`absolute top-0 right-0 w-full h-32 bg-gradient-to-r from-primary-500/5 to-purple-500/10 dark:from-primary-900/20 dark:to-purple-900/20 -z-10 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 lg:opacity-100'}`}></div>
           <div className={`absolute bottom-0 left-0 w-full h-32 bg-gradient-to-r from-primary-500/5 to-purple-500/10 dark:from-primary-900/20 dark:to-purple-900/20 -z-10 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 lg:opacity-100'}`}></div>
           
-          {/* Header with Logo, Title, and Collapse/Expand Buttons */}
           <div className="flex items-center justify-between flex-shrink-0 px-4 mb-8">
             <motion.div 
               variants={itemVariants}
@@ -80,12 +85,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
             >
               <img 
                 src={theme === 'light' ? logo2 : logo} 
-                alt="CogniEdify" 
+                alt="CogniEdufy" 
                 className="h-10 sm:h-12 w-auto flex-shrink-0" 
               />
-              {isSidebarOpen && ( // Conditionally render title
+              {isSidebarOpen && ( 
                 <h1 className="ml-2 sm:ml-3 text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 bg-gradient-to-r from-primary-600 to-purple-600 dark:from-primary-400 dark:to-purple-400 text-transparent bg-clip-text whitespace-nowrap">
-                  CogniEdify
+                  CogniEdufy
                 </h1>
               )}
             </motion.div>
@@ -103,7 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
           {/* Desktop Collapse/Expand Button - Positioned absolutely */}
           <button
             onClick={toggleSidebar}
-            className={`hidden lg:block absolute top-[1.8rem] z-50 p-1.5 rounded-full bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 
+            className={`hidden lg:block absolute top-[1.8rem] z-[230] p-1.5 rounded-full bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 
                         hover:bg-gray-100 dark:hover:bg-gray-600 shadow-lg border border-gray-200 dark:border-gray-600
                         transition-all duration-300 ease-in-out
                         ${isSidebarOpen ? 'right-3' : 'right-[-0.875rem]'}`} // right-[-0.875rem] for 1.75rem button to be half out
@@ -209,15 +214,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, toggleSidebar }) => {
           >
             <div className={`flex items-center space-x-4 px-3 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl ${!isSidebarOpen && 'lg:justify-center lg:px-0 lg:space-x-0'}`}>
               <div className="h-10 w-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-md flex-shrink-0">
-                {user?.username?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                {user?.first_name && user?.last_name
+                  ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase()
+                  : user?.username?.charAt(0).toUpperCase() || 'U'
+                }
               </div>
               {isSidebarOpen && (
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {user?.username || user?.email || 'User'}
+                    {user?.first_name && user?.last_name
+                      ? `${user.first_name} ${user.last_name}`
+                      : user?.username || 'User'
+                    }
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {user?.role === 'admin' ? 'Admin Plan' : 'Free Plan'}
+                    {subscription?.plan?.name ||
+                     (user?.subscription ? user.subscription.charAt(0).toUpperCase() + user.subscription.slice(1) : 'Free')} Plan
                   </p>
                 </div>
               )}

@@ -29,6 +29,8 @@ import {
 
 interface LearningPreferences {
   learningStyle: string;
+  language: string;  // Language code (e.g., 'en', 'es', 'fr')
+  aiMode: 'standard' | 'advanced';  // AI mode selection
   preferredLanguage: string;
   secondaryLanguages: string[];
   contentLocalization: boolean;
@@ -99,10 +101,10 @@ const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [profileData, setProfileData] = useState({
-    name: user?.username || '',
+    name: user?.name || '',
     email: user?.email || '',
-    bio: user?.bio?.[0] || '', // Handle optional Candid type
-    avatar_url: user?.avatar_url?.[0] || '', // Handle optional Candid type
+    bio: (user as { bio?: string })?.bio || '',
+    avatar_url: user?.avatar_url || '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -152,6 +154,8 @@ const Settings: React.FC = () => {
 
   const [learningPreferences, setLearningPreferences] = useState<LearningPreferences>({
     learningStyle: 'visual',
+    language: 'en',  // Default to English
+    aiMode: 'standard',  // Default to standard mode
     preferredLanguage: 'English',
     secondaryLanguages: [],
     contentLocalization: true,
@@ -169,6 +173,37 @@ const Settings: React.FC = () => {
 
   // Languages supported by the platform
   const availableLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish (Español)' },
+    { code: 'fr', name: 'French (Français)' },
+    { code: 'de', name: 'German (Deutsch)' },
+    { code: 'it', name: 'Italian (Italiano)' },
+    { code: 'pt', name: 'Portuguese (Português)' },
+    { code: 'ru', name: 'Russian (Русский)' },
+    { code: 'zh', name: 'Chinese (中文)' },
+    { code: 'ja', name: 'Japanese (日本語)' },
+    { code: 'ko', name: 'Korean (한국어)' },
+    { code: 'ar', name: 'Arabic (العربية)' },
+    { code: 'hi', name: 'Hindi (हिन्दी)' },
+    { code: 'tr', name: 'Turkish (Türkçe)' },
+    { code: 'nl', name: 'Dutch (Nederlands)' },
+    { code: 'sv', name: 'Swedish (Svenska)' },
+    { code: 'no', name: 'Norwegian (Norsk)' },
+    { code: 'da', name: 'Danish (Dansk)' },
+    { code: 'fi', name: 'Finnish (Suomi)' },
+    { code: 'pl', name: 'Polish (Polski)' },
+    { code: 'cs', name: 'Czech (Čeština)' },
+    { code: 'hu', name: 'Hungarian (Magyar)' },
+    { code: 'ro', name: 'Romanian (Română)' },
+    { code: 'bg', name: 'Bulgarian (Български)' },
+    { code: 'hr', name: 'Croatian (Hrvatski)' },
+    { code: 'sk', name: 'Slovak (Slovenčina)' },
+    { code: 'sl', name: 'Slovenian (Slovenščina)' },
+    { code: 'et', name: 'Estonian (Eesti)' },
+    { code: 'lv', name: 'Latvian (Latviešu)' },
+    { code: 'lt', name: 'Lithuanian (Lietuvių)' },
+    { code: 'mt', name: 'Maltese (Malti)' },
+    { code: 'el', name: 'Greek (Ελληνικά)' },
     { code: 'sw', name: 'Swahili (Kiswahili)' },
     { code: 'am', name: 'Amharic (አማርኛ)' },
     { code: 'ha', name: 'Hausa (هَوُسَ)' },
@@ -181,11 +216,7 @@ const Settings: React.FC = () => {
     { code: 'ss', name: 'Swati (siSwati)' },
     { code: 've', name: 'Venda (Tshivenda)' },
     { code: 'ts', name: 'Tsonga (Xitsonga)' },
-    { code: 'af', name: 'Afrikaans' },
-    { code: 'ar', name: 'Arabic (العربية)' },
-    { code: 'fr', name: 'French (Français)' },
-    { code: 'pt', name: 'Portuguese (Português)' },
-    { code: 'en', name: 'English' }
+    { code: 'af', name: 'Afrikaans' }
   ];
 
   // Cultural contexts available for educational content adaptation
@@ -420,7 +451,12 @@ const Settings: React.FC = () => {
   const handleAISettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Save AI settings
       await userSettingsService.updateAISettings(aiSettings);
+      
+      // Also save the learning preferences (including AI mode and language)
+      await userSettingsService.updateLearningPreferences(learningPreferences);
+      
       showToast('success', 'AI settings updated successfully');
     } catch (error) {
       console.error('Error updating AI settings:', error);
@@ -973,13 +1009,58 @@ const Settings: React.FC = () => {
 
                       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                          Language & Localization
+                          Language & AI Mode
                         </h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                              Primary Language
+                              AI Response Language
+                            </label>
+                            <select
+                              value={learningPreferences.language}
+                              onChange={(e) => setLearningPreferences(prev => ({ 
+                                ...prev, 
+                                language: e.target.value 
+                              }))}
+                              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            >
+                              {availableLanguages.map(language => (
+                                <option key={language.code} value={language.code}>
+                                  {language.name}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              AI tutors will respond in this language
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              AI Mode
+                            </label>
+                            <select
+                              value={learningPreferences.aiMode}
+                              onChange={(e) => setLearningPreferences(prev => ({ 
+                                ...prev, 
+                                aiMode: e.target.value as 'standard' | 'advanced'
+                              }))}
+                              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            >
+                              <option value="standard">Standard (Groq) - Fast & Cost-effective</option>
+                              <option value="advanced">Advanced (OpenAI) - High Quality</option>
+                            </select>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Choose your preferred AI service for responses
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Primary Language (Legacy)
                             </label>
                             <select
                               value={learningPreferences.preferredLanguage}
@@ -1418,6 +1499,27 @@ const Settings: React.FC = () => {
                       </select>
                     </div>
 
+                    {/* AI Mode Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        AI Service Mode
+                      </label>
+                      <select
+                        value={learningPreferences.aiMode}
+                        onChange={(e) => setLearningPreferences(prev => ({ 
+                          ...prev, 
+                          aiMode: e.target.value as 'standard' | 'advanced'
+                        }))}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      >
+                        <option value="standard">Standard (Groq) - Fast & Cost-effective</option>
+                        <option value="advanced">Advanced (OpenAI) - High Quality</option>
+                      </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Choose your preferred AI service for responses
+                      </p>
+                    </div>
+
                     {/* Model Preference */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1452,6 +1554,17 @@ const Settings: React.FC = () => {
                         className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
                         placeholder="Add any specific instructions for the AI assistant..."
                       />
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-4">
+                      <Button 
+                        type="button" 
+                        variant="primary"
+                        onClick={handleAISettingsSubmit}
+                      >
+                        Save AI Settings
+                      </Button>
                     </div>
                   </div>
                 </div>

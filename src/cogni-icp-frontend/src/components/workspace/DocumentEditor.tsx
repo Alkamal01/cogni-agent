@@ -61,8 +61,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
       socket.emit('join_document', { 
         session_id: sessionId, 
         document_id: documentId,
-        user_id: user?.id?.toString(),
-        user_name: user?.username || 'Anonymous'
+        user_id: user?.id,
+        user_name: user?.name
       });
       
       // Listen for document data
@@ -73,14 +73,14 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
       
       // Listen for changes from other users
       socket.on('content_update', (data: { content: string, user_id: string | number }) => {
-        if (data.user_id !== user?.id?.toString()) {
+        if (data.user_id !== user?.id) {
           setContent(data.content);
         }
       });
       
       // Listen for title changes
       socket.on('title_update', (data: { title: string, user_id: string | number }) => {
-        if (data.user_id !== user?.id?.toString()) {
+        if (data.user_id !== user?.id) {
           setTitle(data.title);
         }
       });
@@ -98,7 +98,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
             return {
               ...prev,
               [data.user_id]: {
-                name: user?.username || 'Anonymous',
+                name: user?.name || 'Anonymous',
                 cursor: data.cursor,
                 color: getRandomColor()
               }
@@ -141,7 +141,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({
         socket.emit('leave_document', { 
           session_id: sessionId, 
           document_id: documentId,
-          user_id: user?.id?.toString()
+          user_id: user?.id
         });
         socket.off('document_data');
         socket.off('content_update');

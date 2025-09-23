@@ -16,7 +16,7 @@ import DiscussionModal from '../components/groups/DiscussionModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 
-// Define interface for study sessions extracted from activities
+// Define interface for study sessions
 interface StudySession {
   id: number;
   title: string;
@@ -25,6 +25,7 @@ interface StudySession {
   duration: number;
   participants: number;
   maxParticipants: number;
+  isParticipant?: boolean;
 }
 
 // Define interface for RecentMessage
@@ -40,6 +41,7 @@ interface RecentMessage {
   };
 }
 
+// Utility functions for formatting dates and times
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { 
@@ -91,6 +93,7 @@ const GroupDetail: React.FC = () => {
   const [resources, setResources] = useState<StudyResource[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([]);
+  const [polls, setPolls] = useState<any[]>([]);
   
   // Adapt members for modal format
   const adaptMembersForModal = useCallback((members: GroupMember[]) => members.map(member => ({
@@ -102,7 +105,41 @@ const GroupDetail: React.FC = () => {
     skills: [],
     user_id: member.user_id
   })), []);
-  
+
+  // Function to fetch sessions from API
+  const fetchSessions = async () => {
+    if (!groupPublicId) return;
+
+    try {
+      const sessionsData = await studyGroupService.getGroupSessions(groupPublicId);
+      const formattedSessions = sessionsData.map(session => ({
+        id: session.id,
+        title: session.title,
+        date: session.date,
+        time: session.time,
+        duration: session.duration,
+        participants: session.participant_count || 0,
+        maxParticipants: session.max_participants,
+        isParticipant: session.is_participant || false
+      }));
+      setSessions(formattedSessions);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+  };
+
+  // Function to fetch polls from API
+  const fetchPolls = async () => {
+    if (!groupPublicId) return;
+
+    try {
+      const pollsData = await studyGroupService.getGroupPolls(groupPublicId);
+      setPolls(pollsData);
+    } catch (error) {
+      console.error('Error fetching polls:', error);
+    }
+  };
+
   // Function to fetch group data - moved outside useEffect
   const fetchData = async () => {
     if (!groupPublicId) {
@@ -130,31 +167,6 @@ const GroupDetail: React.FC = () => {
       // Set activities if available in the response
       if (groupData.recent_activities && groupData.recent_activities.length > 0) {
         setActivities(groupData.recent_activities);
-        
-        // Extract study sessions from activities
-        const sessionActivities = groupData.recent_activities
-          .filter(activity => activity.activity_type === 'session_scheduled')
-          .map(activity => {
-            try {
-              // Parse session data from activity content
-              const sessionData = JSON.parse(activity.content);
-              return {
-                id: activity.id,
-                title: sessionData.title || 'Study Session',
-                date: sessionData.date || formatDate(activity.created_at),
-                time: sessionData.time || '18:00',
-                duration: parseInt(sessionData.duration) || 60,
-                participants: sessionData.participants || 0,
-                maxParticipants: sessionData.maxParticipants || 10
-              };
-            } catch (e) {
-              console.error('Error parsing session data:', e);
-              return null;
-            }
-          })
-          .filter(Boolean) as StudySession[];
-          
-        setSessions(sessionActivities);
       }
       
       // Set resources if available in the response
@@ -184,7 +196,11 @@ const GroupDetail: React.FC = () => {
         console.error('Error fetching recent messages:', err);
         // Don't set error state for messages - it's not critical
       }
-      
+
+      // Fetch sessions and polls
+      await fetchSessions();
+      await fetchPolls();
+
       setLoading(false);
     } catch (err) {
       console.error('Error fetching group data:', err);
@@ -192,7 +208,57 @@ const GroupDetail: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
+  // Function to handle joining a session
+  const handleJoinSession = async (sessionId: number) => {
+    if (!groupPublicId) return;
+
+    try {
+      await studyGroupService.joinSession(groupPublicId, sessionId);
+
+      // Refresh sessions to update participation status
+      await fetchSessions();
+
+      toast({
+        title: 'Success',
+        description: 'You have successfully joined the session!',
+        variant: 'success'
+      });
+    } catch (error) {
+      console.error('Error joining session:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to join the session. Please try again.',
+        variant: 'error'
+      });
+    }
+  };
+
+  // Function to handle leaving a session
+  const handleLeaveSession = async (sessionId: number) => {
+    if (!groupPublicId) return;
+
+    try {
+      await studyGroupService.leaveSession(groupPublicId, sessionId);
+
+      // Refresh sessions to update participation status
+      await fetchSessions();
+
+      toast({
+        title: 'Success',
+        description: 'You have left the session.',
+        variant: 'success'
+      });
+    } catch (error) {
+      console.error('Error leaving session:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to leave the session. Please try again.',
+        variant: 'error'
+      });
+    }
+  };
+
   // Use Effect for fetching data
   useEffect(() => {
     fetchData();
@@ -209,7 +275,7 @@ const GroupDetail: React.FC = () => {
       setLoading(true);
       
       // Enhanced debug information
-      const currentMember = members.find(m => m.user_id.toString() === user?.id?.toString());
+      const currentMember = members.find(m => m.user_id === user?.id);
       console.log("Current user:", user);
       console.log("Group ID:", groupPublicId);
       console.log("Current user's role in group:", currentMember?.role);
@@ -219,32 +285,28 @@ const GroupDetail: React.FC = () => {
       
       // Create the session using the API
       const createdSession = await studyGroupService.createSession(groupPublicId, sessionData);
-      
-      // Add the newly created session to local state
-      setSessions(prevSessions => [...prevSessions, {
-        id: createdSession.id,
-        title: createdSession.title,
-        date: createdSession.date,
-        time: createdSession.time,
-        duration: createdSession.duration,
-        participants: createdSession.participant_count || 1,
-        maxParticipants: createdSession.max_participants
-      }]);
-      
+
+      // Refresh sessions from API to get the latest data
+      await fetchSessions();
+
       // Add a new activity for this session
       const newActivity: GroupActivity = {
         id: Date.now(),
         group_id: group.id,
-        user_id: user?.id ? parseInt(user.id.toString().slice(0, 8), 16) : 0,
+        user_id: user?.id || 0,
         activity_type: 'session_scheduled',
-        content: JSON.stringify(sessionData),
+        content: JSON.stringify({
+          title: createdSession.title,
+          date: createdSession.date,
+          time: createdSession.time
+        }),
         created_at: new Date().toISOString(),
         user: {
-          id: user?.id ? parseInt(user.id.toString().slice(0, 8), 16) : 0,
+          id: user?.id || 0,
           username: user?.username || 'You'
         }
       };
-      
+
       setActivities(prevActivities => [newActivity, ...prevActivities]);
       
       toast({
@@ -478,12 +540,13 @@ const GroupDetail: React.FC = () => {
                         <strong>Participants:</strong> {session.participants}/{session.maxParticipants}
                       </p>
                     </div>
-                    <Button 
-                      variant="secondary"
+                    <Button
+                      variant={session.isParticipant ? "outline" : "secondary"}
                       size="sm"
                       className="w-full sm:w-auto"
+                      onClick={() => session.isParticipant ? handleLeaveSession(session.id) : handleJoinSession(session.id)}
                     >
-                      Join Session
+                      {session.isParticipant ? 'Leave Session' : 'Join Session'}
                     </Button>
                 </div>
               ))}
@@ -859,6 +922,8 @@ const GroupDetail: React.FC = () => {
         onClose={() => setPollsOpen(false)}
         groupId={groupPublicId}
         groupName={group.name}
+        polls={polls}
+        onPollsUpdate={fetchPolls}
       />
       
       <MembersModal
@@ -867,8 +932,8 @@ const GroupDetail: React.FC = () => {
         groupId={groupPublicId}
         groupName={group.name}
         members={adaptMembersForModal(members)}
-        currentUserId={user?.id ? parseInt(user.id.toString().slice(0, 8), 16) : 0}
-        isAdmin={members.find(m => m.user_id.toString() === user?.id?.toString())?.role === 'admin'}
+        currentUserId={user?.id || 0}
+        isAdmin={members.find(m => m.user_id === user?.id)?.role === 'admin'}
         creatorId={group.creator_id}
         onMemberUpdate={fetchData}
       />

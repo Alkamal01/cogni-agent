@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { IoShield, IoLogOut, IoPeople, IoCheckmarkCircle, IoCalendar, IoWarning, IoAdd, IoPencil, IoTrash } from 'react-icons/io5';
+import { IoShield, IoLogOut, IoPeople, IoCheckmarkCircle, IoCalendar, IoWarning, IoAdd, IoPencil, IoTrash, IoSearch, IoFilter, IoRefresh, IoStatsChart, IoTime, IoTrendingUp, IoEye, IoBan, IoCheckmark, IoClose } from 'react-icons/io5';
 import { Button, Card } from '../../components/shared';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { adminApi, AdminApiError } from '../../utils/adminApi';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface User {
   id: string;
@@ -25,8 +26,28 @@ interface User {
 interface AdminStats {
   totalUsers: number;
   activeUsers: number;
-  newUsersToday: number;
-  suspendedUsers: number;
+  newUsersToday?: number;
+  suspendedUsers?: number;
+  paidUsers: number;
+  proUsers?: number;
+  enterpriseUsers?: number;
+  tutors: number;
+  admins: number;
+}
+
+interface AnalyticsData {
+  userGrowth: Array<{ date: string; users: number; total: number }>;
+  statusDistribution: Array<{ name: string; value: number; count: number; color?: string }>;
+  subscriptionDistribution: Array<{ name: string; value: number; count: number; color?: string }>;
+  roleDistribution: Array<{ name: string; value: number; count: number; color?: string }>;
+  recentActivity: Array<{ action: string; user: string; timestamp: string; status: 'success' | 'warning' | 'error' }>;
+  stats: {
+    totalUsers: number;
+    activeUsers: number;
+    paidUsers: number;
+    tutors: number;
+    admins: number;
+  };
 }
 
 interface RewardTask {
@@ -50,16 +71,18 @@ interface RewardTask {
 const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [subscriptionFilter, setSubscriptionFilter] = useState('all');
   const [newSubscription, setNewSubscription] = useState('');
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [generatedPasswordUser, setGeneratedPasswordUser] = useState<string | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'users' | 'rewards'>('users');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'analytics' | 'rewards'>('overview');
   const [tasks, setTasks] = useState<RewardTask[]>([]);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -77,6 +100,13 @@ const AdminDashboard: React.FC = () => {
     metadata: ''
   });
 
+  // User deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+
   // User editing state
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -91,20 +121,79 @@ const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Generate mock analytics data (fallback if real data is not available)
+  const generateAnalyticsData = (users: User[]): AnalyticsData => {
+    const now = new Date();
+    const last30Days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date(now);
+      date.setDate(date.getDate() - (29 - i));
+      return {
+        date: date.toISOString().split('T')[0],
+        users: Math.floor(Math.random() * 10) + 1,
+        total: Math.floor(Math.random() * 50) + users.length - 25
+      };
+    });
+
+    const statusDistribution = [
+      { name: 'Active', value: users.filter(u => u.status === 'active').length, count: users.filter(u => u.status === 'active').length, color: '#10B981' },
+      { name: 'Inactive', value: users.filter(u => u.status === 'inactive').length, count: users.filter(u => u.status === 'inactive').length, color: '#F59E0B' },
+      { name: 'Suspended', value: users.filter(u => u.status === 'suspended').length, count: users.filter(u => u.status === 'suspended').length, color: '#EF4444' }
+    ];
+
+    const subscriptionDistribution = [
+      { name: 'Free', value: users.filter(u => u.subscription === 'free').length, count: users.filter(u => u.subscription === 'free').length, color: '#6B7280' },
+      { name: 'Pro', value: users.filter(u => u.subscription === 'pro').length, count: users.filter(u => u.subscription === 'pro').length, color: '#3B82F6' },
+      { name: 'Enterprise', value: users.filter(u => u.subscription === 'enterprise').length, count: users.filter(u => u.subscription === 'enterprise').length, color: '#8B5CF6' }
+    ];
+
+    const roleDistribution = [
+      { name: 'Users', value: users.filter(u => u.role === 'user').length, count: users.filter(u => u.role === 'user').length, color: '#6B7280' },
+      { name: 'Tutors', value: users.filter(u => u.role === 'tutor').length, count: users.filter(u => u.role === 'tutor').length, color: '#10B981' },
+      { name: 'Admins', value: users.filter(u => u.role === 'admin').length, count: users.filter(u => u.role === 'admin').length, color: '#EF4444' }
+    ];
+
+    const recentActivity = [
+      { action: 'User registered', user: 'John Doe', timestamp: '2 minutes ago', status: 'success' as const },
+      { action: 'User suspended', user: 'Jane Smith', timestamp: '1 hour ago', status: 'warning' as const },
+      { action: 'Password reset', user: 'Bob Johnson', timestamp: '3 hours ago', status: 'success' as const },
+      { action: 'Failed login attempt', user: 'Unknown', timestamp: '5 hours ago', status: 'error' as const },
+      { action: 'User verified email', user: 'Alice Brown', timestamp: '1 day ago', status: 'success' as const }
+    ];
+
+    return {
+      userGrowth: last30Days,
+      statusDistribution,
+      subscriptionDistribution,
+      roleDistribution,
+      recentActivity,
+      stats: {
+        totalUsers: users.length,
+        activeUsers: users.filter(u => u.status === 'active').length,
+        paidUsers: users.filter(u => u.subscription === 'pro' || u.subscription === 'enterprise').length,
+        tutors: users.filter(u => u.role === 'tutor').length,
+        admins: users.filter(u => u.role === 'admin').length
+      }
+    };
+  };
+
   useEffect(() => {
     const loadAdminData = async () => {
       setIsLoading(true);
       try {
         await adminApi.verifyAccess();
-        const [statsData, usersData] = await Promise.all([
+        const [statsData, usersData, analyticsData] = await Promise.all([
           adminApi.getStats(),
-          adminApi.getUsers({ per_page: 50 })
+          adminApi.getUsers({ per_page: 50 }),
+          adminApi.getAnalytics()
         ]);
         
-        setStats((statsData as any).stats);
+        // Use analytics data for stats if available, otherwise fallback to stats endpoint
+        const finalStats = (analyticsData as any)?.stats || (statsData as any).stats;
+        setStats(finalStats);
         const userData = (usersData as any).users || [];
         setUsers(userData);
         setFilteredUsers(userData);
+        setAnalytics(analyticsData as AnalyticsData);
       } catch (error) {
         toast({ title: 'Loading Failed', description: 'Failed to load admin data.', variant: 'error' });
         navigate('/admin/login');
@@ -144,8 +233,11 @@ const AdminDashboard: React.FC = () => {
     if (roleFilter !== 'all') {
       filtered = filtered.filter(user => user.role === roleFilter);
     }
+    if (subscriptionFilter !== 'all') {
+      filtered = filtered.filter(user => user.subscription === subscriptionFilter);
+    }
     setFilteredUsers(filtered);
-  }, [users, searchQuery, statusFilter, roleFilter]);
+  }, [users, searchQuery, statusFilter, roleFilter, subscriptionFilter]);
 
   const handleCreateTask = async () => {
     setIsCreatingTask(true);
@@ -281,6 +373,80 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // User deletion functions
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await adminApi.deleteUser(userToDelete.id);
+      setUsers(users.filter(u => u.id !== userToDelete.id));
+      setFilteredUsers(filteredUsers.filter(u => u.id !== userToDelete.id));
+      toast({ 
+        title: 'User Deleted', 
+        description: `${userToDelete.name} has been permanently deleted.`, 
+        variant: 'success' 
+      });
+    } catch (error) {
+      toast({ 
+        title: 'Delete Failed', 
+        description: (error as AdminApiError).message, 
+        variant: 'error' 
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    setIsDeleting(true);
+    try {
+      await adminApi.bulkUserAction(selectedUsers, 'delete');
+      setUsers(users.filter(u => !selectedUsers.includes(u.id)));
+      setFilteredUsers(filteredUsers.filter(u => !selectedUsers.includes(u.id)));
+      setSelectedUsers([]);
+      setShowBulkActions(false);
+      toast({ 
+        title: 'Bulk Delete Complete', 
+        description: `${selectedUsers.length} users have been deleted.`, 
+        variant: 'success' 
+      });
+    } catch (error) {
+      toast({ 
+        title: 'Bulk Delete Failed', 
+        description: (error as AdminApiError).message, 
+        variant: 'error' 
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSelectUser = (userId: string) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedUsers.length === filteredUsers.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(filteredUsers.map(u => u.id));
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
@@ -301,94 +467,365 @@ const AdminDashboard: React.FC = () => {
   return (
     <>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <header className="bg-white dark:bg-gray-800 shadow-md">
-          <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-            <div className="flex items-center">
-              <IoShield className="h-8 w-8 text-blue-600" />
-              <h1 className="ml-3 text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+        {/* Enhanced Header */}
+        <header className="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+          <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center">
+                  <img src="/cognilogo.png" alt="CogniEdufy" className="h-8 w-8" />
+                  <h1 className="ml-3 text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+                </div>
+                <div className="hidden md:flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                  <IoTime className="h-4 w-4" />
+                  <span>Last updated: {new Date().toLocaleTimeString()}</span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.reload()}
+                  className="flex items-center space-x-2"
+                >
+                  <IoRefresh className="h-4 w-4" />
+                  <span>Refresh</span>
+                </Button>
+                <Button variant="secondary" onClick={handleLogout}>
+                  <IoLogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </div>
             </div>
-            <Button variant="secondary" onClick={handleLogout}><IoLogOut className="mr-2" />Logout</Button>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          {/* Enhanced Stats Cards */}
           {stats && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+              initial={{ opacity: 0, y: 20 }} 
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8"
             >
-              <Card className="p-6">
-                <IoPeople className="h-6 w-6 text-blue-600" />
-                <p>Total Users</p><p>{stats.totalUsers}</p>
+              <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Users</p>
+                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{stats.totalUsers}</p>
+                  </div>
+                  <IoPeople className="h-8 w-8 text-blue-600" />
+                </div>
               </Card>
-              <Card className="p-6">
-                <IoCheckmarkCircle className="h-6 w-6 text-green-600" />
-                <p>Active Users</p><p>{stats.activeUsers}</p>
+              
+              <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Active Users</p>
+                    <p className="text-3xl font-bold text-green-900 dark:text-green-100">{stats.activeUsers}</p>
+                  </div>
+                  <IoCheckmarkCircle className="h-8 w-8 text-green-600" />
+                </div>
               </Card>
-              <Card className="p-6">
-                <IoCalendar className="h-6 w-6 text-yellow-600" />
-                <p>New Today</p><p>{stats.newUsersToday}</p>
+              
+              <Card className="p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">New Today</p>
+                    <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">{stats.newUsersToday}</p>
+                  </div>
+                  <IoCalendar className="h-8 w-8 text-yellow-600" />
+                </div>
               </Card>
-              <Card className="p-6">
-                <IoWarning className="h-6 w-6 text-red-600" />
-                <p>Suspended</p><p>{stats.suspendedUsers}</p>
+              
+              <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">Suspended</p>
+                    <p className="text-3xl font-bold text-red-900 dark:text-red-100">{stats.suspendedUsers}</p>
+                  </div>
+                  <IoWarning className="h-8 w-8 text-red-600" />
+                </div>
+              </Card>
+              
+              <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Paid Users</p>
+                    <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">{stats.paidUsers || 0}</p>
+                  </div>
+                  <IoCheckmark className="h-8 w-8 text-purple-600" />
+                </div>
               </Card>
             </motion.div>
           )}
 
-          <div className="mb-6">
-            <div className="flex space-x-4">
-              <button onClick={() => setActiveTab('users')} className={activeTab === 'users' ? 'font-bold' : ''}>User Management</button>
-              <button onClick={() => setActiveTab('rewards')} className={activeTab === 'rewards' ? 'font-bold' : ''}>Reward Tasks</button>
-            </div>
+          {/* Enhanced Navigation Tabs */}
+          <div className="mb-8">
+            <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+              {[
+                { id: 'overview', label: 'Overview', icon: IoStatsChart },
+                { id: 'users', label: 'Users', icon: IoPeople },
+                { id: 'analytics', label: 'Analytics', icon: IoTrendingUp },
+                { id: 'rewards', label: 'Rewards', icon: IoAdd }
+              ].map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
+
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* User Growth Chart */}
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-white">
+                    <IoTrendingUp className="h-5 w-5 mr-2 text-blue-600" />
+                    User Growth (30 Days)
+                  </h3>
+                  {analytics && analytics.userGrowth && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={analytics.userGrowth}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="total" stackId="1" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} />
+                        <Area type="monotone" dataKey="users" stackId="2" stroke="#10B981" fill="#10B981" fillOpacity={0.6} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+
+                {/* User Status Distribution */}
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-white">
+                    <IoStatsChart className="h-5 w-5 mr-2 text-green-600" />
+                    User Status Distribution
+                  </h3>
+                  {analytics && analytics.statusDistribution && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={analytics.statusDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, count }) => `${name}: ${count}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {analytics.statusDistribution.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+              </div>
+
+              {/* Recent Activity */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                  <IoTime className="h-5 w-5 mr-2 text-purple-600" />
+                  Recent Activity
+                </h3>
+                <div className="space-y-3">
+                  {analytics?.recentActivity?.map((activity, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          activity.status === 'success' ? 'bg-green-500' :
+                          activity.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                        }`} />
+                        <span className="text-sm font-medium">{activity.action}</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">- {activity.user}</span>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {activity.timestamp ? new Date(activity.timestamp).toLocaleString() : 'Unknown'}
+                      </span>
+                    </div>
+                  )) || (
+                    <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                      No recent activity
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Analytics Tab */}
+          {activeTab === 'analytics' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Subscription Distribution */}
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 text-white">Subscription Distribution</h3>
+                  {analytics && analytics.subscriptionDistribution && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={analytics.subscriptionDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, count }) => `${name}: ${count}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {analytics.subscriptionDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+
+                {/* Role Distribution */}
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 text-white">Role Distribution</h3>
+                  {analytics && analytics.roleDistribution && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={analytics.roleDistribution}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#3B82F6" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+              </div>
+            </motion.div>
+          )}
 
           {activeTab === 'users' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">User Management</h2>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Search users..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+              {/* Enhanced User Management Header */}
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 space-y-4 lg:space-y-0">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Manage and monitor user accounts</p>
+                </div>
+                
+                {/* Bulk Actions */}
+                {selectedUsers.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {selectedUsers.length} selected
+                    </span>
+                    <Button
+                      variant="outline"
+                      onClick={handleBulkDelete}
+                      disabled={isDeleting}
+                      className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                    >
+                      <IoTrash className="h-4 w-4 mr-2" />
+                      Delete Selected
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedUsers([])}
+                    >
+                      <IoClose className="h-4 w-4 mr-2" />
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Enhanced Filters */}
+              <Card className="p-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="relative">
+                    <IoSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     <option value="all">All Status</option>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                     <option value="suspended">Suspended</option>
                   </select>
+                  
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     <option value="all">All Roles</option>
                     <option value="user">User</option>
                     <option value="tutor">Tutor</option>
                     <option value="admin">Admin</option>
                   </select>
+                  
+                  <select
+                    value={subscriptionFilter}
+                    onChange={(e) => setSubscriptionFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="all">All Subscriptions</option>
+                    <option value="free">Free</option>
+                    <option value="pro">Pro</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
                 </div>
-              </div>
+              </Card>
               
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+              {/* Enhanced Users Table */}
+              <Card className="overflow-hidden">
                 {isLoading ? (
                   <div className="p-8 text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-gray-600">Loading users...</p>
+                    <p className="mt-2 text-gray-600 dark:text-gray-400">Loading users...</p>
                   </div>
                 ) : filteredUsers.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                       <thead className="bg-gray-50 dark:bg-gray-700">
                         <tr>
+                          <th className="px-6 py-3 text-left">
+                            <input
+                              type="checkbox"
+                              checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                              onChange={handleSelectAll}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Role</th>
@@ -401,9 +838,17 @@ const AdminDashboard: React.FC = () => {
                         {filteredUsers.map((user) => (
                           <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={selectedUsers.includes(user.id)}
+                                onChange={() => handleSelectUser(user.id)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex-shrink-0 h-10 w-10">
-                                  <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                                     {user.avatar ? (
                                       <img
                                         className="h-10 w-10 rounded-full object-cover"
@@ -411,7 +856,7 @@ const AdminDashboard: React.FC = () => {
                                         alt=""
                                       />
                                     ) : (
-                                      <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                                      <span className="text-sm font-medium text-white">
                                         {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                                       </span>
                                     )}
@@ -425,32 +870,58 @@ const AdminDashboard: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                user.status === 'active' ? 'bg-green-100 text-green-800' :
-                                user.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
+                                user.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                user.status === 'inactive' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                               }`}>
                                 {user.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                              {user.role}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.role === 'admin' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                user.role === 'tutor' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                              }`}>
+                                {user.role}
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                              {user.subscription}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.subscription === 'enterprise' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
+                                user.subscription === 'pro' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                              }`}>
+                                {user.subscription}
+                              </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                               {formatDate(user.joinDate)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <button 
-                                onClick={() => handleEditUser(user)}
-                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
-                              >
-                                Edit
-                              </button>
-                              <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                                Suspend
-                              </button>
+                              <div className="flex items-center space-x-2">
+                                <button 
+                                  onClick={() => handleEditUser(user)}
+                                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="Edit User"
+                                >
+                                  <IoPencil className="h-4 w-4" />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteUser(user)}
+                                  className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  title="Delete User"
+                                >
+                                  <IoTrash className="h-4 w-4" />
+                                </button>
+                                <button 
+                                  onClick={() => {/* View user details */}}
+                                  className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                                  title="View Details"
+                                >
+                                  <IoEye className="h-4 w-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -459,17 +930,19 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                    <p>No users found matching your criteria.</p>
+                    <IoPeople className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                    <p className="text-lg font-medium mb-2">No users found</p>
+                    <p>No users match your current search and filter criteria.</p>
                   </div>
                 )}
-              </div>
+              </Card>
             </motion.div>
           )}
 
           {activeTab === 'rewards' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Reward Tasks</h2>
+                <h2 className="text-xl font-semibold text-white">Reward Tasks</h2>
                 <Button onClick={() => setShowCreateTaskModal(true)}><IoAdd className="mr-2" />Create Task</Button>
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
@@ -997,6 +1470,67 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         )}
 
+
+        {/* Delete User Confirmation Modal */}
+        {showDeleteModal && userToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ y: -50, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              exit={{ y: 50, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4"
+            >
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0 w-10 h-10 mx-auto flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+                  <IoWarning className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Delete User Account
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  Are you sure you want to permanently delete <strong>{userToDelete.name}</strong>? 
+                  This action cannot be undone and will remove all user data.
+                </p>
+                
+                <div className="flex space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setUserToDelete(null);
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={confirmDeleteUser}
+                    disabled={isDeleting}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isDeleting ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </div>
+                    ) : (
+                      'Delete User'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
 
       </AnimatePresence>
     </>

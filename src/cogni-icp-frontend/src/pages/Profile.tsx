@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { Card, Button, Input } from '../components/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+
 import { User, Mail, Award } from 'lucide-react';
-import MockSuiWallet from '../components/shared/MockSuiWallet';
 
 const Profile = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.username || '',
+    name: user?.name || '',
     email: user?.email || '',
     currentPassword: '',
     newPassword: '',
@@ -96,7 +96,7 @@ const Profile = () => {
         </form>
       </Card>
 
-      <MockSuiWallet />
+
 
       <Card className="p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">

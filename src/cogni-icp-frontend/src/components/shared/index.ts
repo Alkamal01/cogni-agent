@@ -11,4 +11,5 @@ export { default as FeatureGate, UsageLimitIndicator, PlanBadge } from './Featur
 export { default as MarkdownRenderer } from './MarkdownRenderer';
 export { default as Select } from './Select';
 export { default as Textarea } from './Textarea'; 
-export { default as MockSuiWallet } from './MockSuiWallet'; 
+
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';

@@ -171,7 +171,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={togglePanel}
-        className="fixed bottom-6 right-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+        className="fixed bottom-6 right-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-[210]"
         animate={{ rotate: showPanel ? 45 : 0 }}
       >
         {showPanel ? (
@@ -196,10 +196,10 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={`bg-white dark:bg-blue-950 rounded-xl shadow-2xl border border-gray-100 dark:border-blue-900 overflow-hidden z-50 ${
+            className={`bg-white dark:bg-blue-950 rounded-xl shadow-2xl border border-gray-100 dark:border-blue-900 overflow-hidden z-[210] ${
               onClose 
-                ? "absolute top-16 right-4 w-96" // Positioned below navbar
-                : "fixed bottom-20 right-6 w-96" // Original fixed position
+                ? "absolute top-16 right-4 w-[90vw] max-w-sm md:w-96" // Positioned below navbar
+                : "fixed bottom-20 right-4 w-[90vw] max-w-sm md:right-6 md:w-96" // Mobile-friendly sizing
             }`}
           >
             <div className="p-4 border-b border-gray-200 dark:border-blue-900/50 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/30 dark:to-primary-800/30">

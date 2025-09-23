@@ -8,13 +8,12 @@ import {
   Award,
   TrendingUp,
   Plus,
-  MessageSquare,
-  Brain,
   Sparkles,
   GraduationCap,
   Star,
   ArrowRight,
-  Home
+  Home,
+  Trash
 } from 'lucide-react';
 import TutorFormModal, { TutorFormData } from '../components/tutors/TutorFormModal';
 import tutorService, { Tutor } from '../services/tutorService';
@@ -47,40 +46,7 @@ const itemVariants = {
   }
 };
 
-interface StatCardProps {
-  label: string;
-  value: string;
-  icon: React.ComponentType<any>;
-  trend?: number;
-  color: string;
-  bgGradient: string;
-}
 
-// Enhanced StatCard component with smooth transitions
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, trend, color, bgGradient }) => {
-  return (
-    <motion.div 
-      variants={itemVariants}
-      className="relative overflow-hidden rounded-lg bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow duration-300"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</p>
-          <p className={`text-2xl font-bold ${color} dark:text-white`}>{value}</p>
-          {trend !== undefined && (
-            <div className={`flex items-center mt-1 text-sm ${trend > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              <TrendingUp className={`w-4 h-4 mr-1 ${trend < 0 ? 'transform rotate-180' : ''}`} />
-              <span>{Math.abs(trend)}% this week</span>
-            </div>
-          )}
-        </div>
-        <div className={`p-3 rounded-full bg-gradient-to-r ${bgGradient} text-white`}>
-          <Icon className="w-6 h-6" />
-        </div>
-      </div>
-    </motion.div>
-  );
-};
 
 const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,9 +56,10 @@ const Dashboard: React.FC = () => {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [isClearingActivities, setIsClearingActivities] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { user, backendActor } = useAuth();
+  const { user } = useAuth();
 
   // Cache and debouncing refs
   const hasFetchedData = useRef(false);
@@ -119,8 +86,8 @@ const Dashboard: React.FC = () => {
       // Fetch all data in parallel
       const [stats, recentActivities, tutorsData] = await Promise.all([
         dashboardService.getDashboardStats(),
-        dashboardService.getRecentActivities(),
-        tutorService.getAllTutors(backendActor)
+        dashboardService.getRecentActivities(5), // Limit to 5 activities for dashboard
+        tutorService.getAllTutors()
       ]);
 
       setDashboardStats(stats);
@@ -138,6 +105,20 @@ const Dashboard: React.FC = () => {
       isFetchingRef.current = false;
     }
   }, [showToast]);
+
+  const handleClearActivities = async () => {
+    try {
+      setIsClearingActivities(true);
+      await dashboardService.clearActivities();
+      setActivities([]);
+      showToast('success', 'Activities cleared successfully');
+    } catch (error) {
+      console.error('Error clearing activities:', error);
+      showToast('error', 'Failed to clear activities');
+    } finally {
+      setIsClearingActivities(false);
+    }
+  };
 
   // Debounced effect to fetch data
   useEffect(() => {
@@ -185,30 +166,8 @@ const Dashboard: React.FC = () => {
   const handleCreateTutor = async (data: TutorFormData) => {
     try {
       setIsLoading(true);
-      const createdTutor = await tutorService.createTutor(data, backendActor);
+      const createdTutor = await tutorService.createTutor(data);
       setTutors(prev => [...prev, createdTutor]);
-      
-      // Automatically generate course outline for the new tutor
-      try {
-        const userSettings = {
-          learning_style: 'visual', // Default learning style
-          difficulty_level: 'intermediate', // Default difficulty
-          ai_interaction_style: 'friendly' // Default AI style
-        };
-        
-        const courseOutline = await tutorService.generateAiCourseOutline(
-          createdTutor.public_id, 
-          'Introduction to ' + createdTutor.expertise[0], // Use first expertise area
-          backendActor
-        );
-        
-        console.log('Auto-generated course outline:', courseOutline);
-        showToast('info', `Course outline generated for ${createdTutor.name}`);
-      } catch (courseError) {
-        console.warn('Failed to auto-generate course outline:', courseError);
-        // Don't show error to user, course generation is optional
-      }
-      
       setIsModalOpen(false);
       showToast('success', `Tutor "${createdTutor.name}" created successfully`);
       // Navigate to the tutor session page using the correct path
@@ -299,7 +258,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center relative z-10">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Welcome back, {user?.username || 'Learner'}!
+                Welcome back, {user?.first_name || 'Learner'}!
               </h1>
               <p className="text-gray-600 dark:text-blue-200 mt-2 text-lg">
                 Here's what's happening with your learning journey
@@ -477,6 +436,19 @@ const Dashboard: React.FC = () => {
                 <Home className="w-6 h-6 mr-2 text-primary-600 dark:text-primary-400" />
                 Recent Activity
               </h2>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearActivities}
+                  disabled={isClearingActivities || activities.length === 0}
+                  className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900/20 flex items-center"
+                >
+                  <Trash className="w-4 h-4 mr-1" />
+                  {isClearingActivities ? 'Clearing...' : 'Clear'}
+                </Button>
+                
+              </div>
             </div>
             
             <motion.div 
@@ -543,6 +515,7 @@ const Dashboard: React.FC = () => {
                 <Button
                   variant="outline"
                   className="w-full text-primary-600 dark:text-primary-400 border-primary-600/30 dark:border-primary-400/30 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                  onClick={() => navigate('/activities')}
                 >
                   <span className="flex items-center justify-center">
                     See All Activities

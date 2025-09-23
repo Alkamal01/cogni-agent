@@ -19,7 +19,7 @@ const AdminLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -29,7 +29,8 @@ const AdminLogin: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/admin/login', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,7 +54,7 @@ const AdminLogin: React.FC = () => {
           ...data.user,
           is_admin: true // Ensure admin flag is set
         };
-        login();
+        setUser(userData);
         
         navigate('/admin/dashboard');
         

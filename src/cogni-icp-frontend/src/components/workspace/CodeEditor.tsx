@@ -54,7 +54,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       
       // Listen for code changes from other users
       socket.on('code_update', (data: { content: string, user_id: string | number }) => {
-        if (data.user_id !== user?.id?.toString()) {
+        if (data.user_id !== user?.id) {
           setCurrentCode(data.content);
         }
       });

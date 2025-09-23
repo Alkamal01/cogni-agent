@@ -7,7 +7,6 @@ import FeatureSection from '../components/landing/feature';
 import BrandSection from '../components/landing/brand';
 import FAQSection from '../components/landing/faq';
 import TestimonialsSection from '../components/landing/testimonial';
-import KeyDifferentiators from '../components/landing/KeyDifferentiators';
 
 // logoImages, theme, toggleTheme, isMenuOpen, setIsMenuOpen, logo are removed as they are handled by LandingHeader
 
@@ -22,7 +21,6 @@ const LandingPage: React.FC = () => {
       {/* Main content */}
       <main>
         <HeroSection />
-        <KeyDifferentiators />
         <FeatureSection />
         <BrandSection />
         <TestimonialsSection />

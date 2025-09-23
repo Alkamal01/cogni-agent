@@ -14,19 +14,26 @@ import connectionService, {
   Connection as ServiceConnection 
 } from '../../services/connectionService';
 
-// Modal interfaces (keeping existing for compatibility)
+// Modal interfaces (matching ConnectionRequestModal interface)
 interface NavbarConnectionRequest {
   id: string;
-  sender: {
+  from: {
     id: string;
     public_id: string;
     name: string;
-    username: string;
     avatar?: string;
-    bio?: string;
+    compatibilityScore?: number;
+    skills?: string[];
   };
-  status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
+  to?: {
+    id: string;
+    public_id: string;
+    name: string;
+    avatar?: string;
+  };
+  message?: string;
+  status: 'pending' | 'accepted' | 'declined';
+  timestamp: string;
 }
 
 interface Connection {
@@ -49,7 +56,7 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
-  const { isAuthenticated, login, logout, user } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   // const [searchText, setSearchText] = useState(''); // Removed searchText state
@@ -91,36 +98,48 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
       console.error('Malformed connection request:', request);
       return {
         id: '',
-        sender: { id: '', public_id: '', name: '', username: '' },
+        from: { id: '', public_id: '', name: '' },
         status: 'pending',
-        createdAt: new Date().toISOString()
+        timestamp: new Date().toISOString()
       };
     }
 
     // Get the sender and receiver IDs
     const senderId = request.sender_id;
     const receiverId = request.receiver_id;
-    
+
     // Determine if the current user is the sender or receiver
     const isSender = senderId === user?.id;
-    const otherUserId = isSender ? receiverId : senderId;
 
-    // Get the other user's info
-    const otherUser = isSender ? request.receiver : request.sender;
+    // For received requests, the "from" is the sender
+    // For sent requests, the "to" is the receiver
+    const fromUser = request.sender;
+    const toUser = request.receiver;
 
-    return {
+    const adaptedRequest: any = {
       id: request.id.toString(),
-      sender: {
-        id: otherUserId.toString(),
-        public_id: otherUser?.public_id || '',
-        name: otherUser?.name || otherUser?.username || 'Unknown User',
-        username: otherUser?.username || 'unknown',
-        avatar: otherUser?.avatar_url,
-        bio: otherUser?.bio
+      from: {
+        id: fromUser?.id?.toString() || '',
+        public_id: fromUser?.public_id || '',
+        name: fromUser?.name || fromUser?.username || 'Unknown User',
+        avatar: fromUser?.avatar_url
       },
       status: request.status || 'pending',
-      createdAt: request.created_at || new Date().toISOString()
+      timestamp: request.created_at || new Date().toISOString(),
+      message: request.message
     };
+
+    // Add "to" field for sent requests
+    if (toUser) {
+      adaptedRequest.to = {
+        id: toUser.id?.toString() || '',
+        public_id: toUser.public_id || '',
+        name: toUser.name || toUser.username || 'Unknown User',
+        avatar: toUser.avatar_url
+      };
+    }
+
+    return adaptedRequest;
   };
 
   const adaptConnection = (serviceConnection: ServiceConnection): Connection => {
@@ -259,8 +278,6 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
     loadConnectionData();
   }, []);
 
-  // Use the real user from AuthContext
-
   return (
     <motion.nav 
       initial={{ opacity: 0, y: -10 }}
@@ -336,9 +353,9 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
                 className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
               >
                 <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold">
-                  {user ? user.username?.charAt(0) : ''}
+                  {user ? user.first_name?.charAt(0) : ''}
                 </div>
-                <span className="hidden sm:inline text-sm font-medium text-gray-700 dark:text-gray-200">{user?.username}</span>
+                <span className="hidden sm:inline text-sm font-medium text-gray-700 dark:text-gray-200">{user?.first_name}</span>
               </motion.button>
               
               <AnimatePresence>

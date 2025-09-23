@@ -120,7 +120,7 @@ const TechFeature: React.FC<TechFeatureProps> = ({ title, description, image, re
         transition={{ duration: 0.6, delay: 0.2 }}
       >
         <Link
-          to="/register"
+          to="/auth/register"
           className="inline-flex items-center text-primary-600 dark:text-primary-400 font-medium"
         >
           Learn more <ArrowRight className="ml-2 h-5 w-5" />
@@ -170,7 +170,7 @@ const Features: React.FC = () => {
               className="flex justify-center space-x-4"
             >
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
               >
                 Get Started Free
@@ -309,7 +309,7 @@ const Features: React.FC = () => {
                 </li>
               </ul>
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
               >
                 Try it yourself
@@ -445,7 +445,7 @@ const Features: React.FC = () => {
             className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4"
           >
             <Link
-              to="/register"
+              to="/auth/register"
               className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-primary-600 bg-white hover:bg-gray-50"
             >
               Get Started Free

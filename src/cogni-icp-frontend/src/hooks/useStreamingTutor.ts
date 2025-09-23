@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import aiSocketService, { TutorMessageChunk, TutorStatus } from '../services/aiSocketService';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { aiSocketService, TutorMessageChunk, TutorStatus } from '../services/aiSocketService';
 import type { TutorMessage } from '../services/tutorService';
 
 export type { TutorMessage };
@@ -10,6 +10,7 @@ export const useStreamingTutor = (sessionId: string | undefined) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isError, setIsError] = useState(false);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const localMessageIdsRef = useRef<Set<string>>(new Set());
   
   // This effect now ONLY saves to localStorage. It no longer reads from it.
   useEffect(() => {
@@ -78,12 +79,34 @@ export const useStreamingTutor = (sessionId: string | undefined) => {
       setStatus('error');
     };
 
+    const handleUserMessage = (userMsg: any) => {
+      // Check if this is a message we sent locally (ignore broadcasts of our own messages)
+      const messageKey = `${userMsg.content}_${userMsg.timestamp}`;
+      if (localMessageIdsRef.current.has(messageKey)) {
+        console.log('Ignoring broadcast of locally sent message');
+        return;
+      }
+
+      // Add user message from other devices to the message list
+      const userMessage: TutorMessage = {
+        id: userMsg.id || `user-${Date.now()}`,
+        sender: 'user',
+        content: userMsg.content,
+        timestamp: userMsg.timestamp || new Date().toISOString(),
+        session_id: sessionId,
+      };
+      
+      setMessages(prevMessages => [...prevMessages, userMessage]);
+    };
+
     connect();
     aiSocketService.onMessage(handleMessage);
+    aiSocketService.onUserMessage(handleUserMessage);
     aiSocketService.onError(handleError);
 
     return () => {
       aiSocketService.offMessage(handleMessage);
+      aiSocketService.offUserMessage(handleUserMessage);
       aiSocketService.offError(handleError);
       aiSocketService.disconnect();
     };
@@ -92,17 +115,27 @@ export const useStreamingTutor = (sessionId: string | undefined) => {
   const sendMessage = useCallback((content: string) => {
     if (!sessionId || !content.trim()) return;
 
+    const timestamp = new Date().toISOString();
     const userMessage: TutorMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
       content,
-      timestamp: new Date().toISOString(),
+      timestamp,
       session_id: sessionId,
     };
     
+    // Track this message as locally sent to ignore future broadcasts
+    const messageKey = `${content}_${timestamp}`;
+    localMessageIdsRef.current.add(messageKey);
+    
+    // Clean up old message keys after 30 seconds
+    setTimeout(() => {
+      localMessageIdsRef.current.delete(messageKey);
+    }, 30000);
+    
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setStatus('thinking');
-    aiSocketService.sendMessage(content);
+    aiSocketService.sendMessage(content, timestamp);
   }, [sessionId]);
 
   const loadInitialMessages = useCallback((initialMessages: TutorMessage[]) => {

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { tomorrow, vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export interface MarkdownRendererProps {
   content: string;
@@ -41,6 +41,28 @@ function normalizeGroqMarkdown(raw: string): string {
 const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps): JSX.Element => {
   const safeContent = React.useMemo(() => normalizeGroqMarkdown(content), [content]);
 
+  // Dark mode detection
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    // Check initial state
+    checkDarkMode();
+
+    // Watch for changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code).then(
       () => console.log('Code copied successfully!'),
@@ -64,8 +86,8 @@ const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps): J
           <div key={idx} className="relative my-4 group">
                 <SyntaxHighlighter
               language={lang}
-                  style={tomorrow}
-              className="rounded-lg border"
+                  style={isDarkMode ? vscDarkPlus : tomorrow}
+              className="rounded-lg border border-gray-200 dark:border-gray-600"
                   PreTag="div"
                 >
                   {code}
@@ -112,7 +134,7 @@ const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps): J
         return <strong key={i}>{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith('`')) {
-        return <code key={i} className="bg-gray-200 px-1 rounded text-sm">{part.slice(1, -1)}</code>;
+        return <code key={i} className="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-1 rounded text-sm">{part.slice(1, -1)}</code>;
     }
       return part;
     });

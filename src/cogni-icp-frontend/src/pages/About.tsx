@@ -119,16 +119,16 @@ const About: React.FC = () => {
       image: "/images/ak.png"
     },
     {
-      name: "Kamal Aliyu",
-      role: "COO",
-      bio: "AI Software Engineer with 5+ years of experience in AI and educational technology. Kamal founded CogniEdufy to revolutionize how people learn.",
-      image: "/images/ak.png"
+      name: "Abdullateef Mubarak",
+      role: "CTO",
+      bio: "Software Engineer with expertise in building scalable applications and leading technical development. Abdullateef drives the technology vision at CogniEdufy.",
+      image: "/images/mk.jpg"
     },
     {
-      name: "Kamal Aliyu",
-      role: "Founder & CEO",
-      bio: "AI Software Engineer with 5+ years of experience in AI and educational technology. Kamal founded CogniEdufy to revolutionize how people learn.",
-      image: "/images/ak.png"
+      name: "Mubarak Aminu",
+      role: "COO",
+      bio: "Business Developer and Project Manager with extensive experience in operations and strategic planning. Mubarak ensures smooth project execution and business growth at CogniEdufy.",
+      image: "/images/mkm.jpeg"
     },
   ];
   
@@ -433,7 +433,7 @@ const About: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-primary-600 bg-white hover:bg-gray-50"
               >
                 Start Learning

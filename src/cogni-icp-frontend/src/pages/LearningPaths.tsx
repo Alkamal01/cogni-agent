@@ -159,7 +159,7 @@ const LearningPaths: React.FC = () => {
     {
       id: 4,
       title: "Blockchain Technology & Applications",
-      description: "Understand blockchain principles and applications in various industries.",
+      description: "Understand distributed systems principles and applications in various industries.",
       level: "Intermediate",
       duration: "7 weeks",
       modules: 9,

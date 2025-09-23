@@ -285,24 +285,24 @@ const Contact: React.FC = () => {
   // Office locations data
   const officeLocations = [
     {
-      city: "Zaria",
-      address: "Ahmadu Bello University, Zaria",
+      city: "Abuja",
+      address: "Abuja Central Area",
       phone: "+234 81 6090 8879",
-      email: "hi@cogniedufy.com",
+      email: "info@cogniedufy.app",
       hours: "Monday - Friday: 9:00 AM - 6:00 PM"
     }//,
     // {
     //   city: "New York",
     //   address: "456 Tech Avenue, New York, NY 10001",
     //   phone: "+1 (212) 555-5678",
-    //   email: "ny@cogniedify.com",
+    //   email: "ny@CogniEdufy.com",
     //   hours: "Monday - Friday: 9:00 AM - 6:00 PM"
     // },
     // {
     //   city: "London",
     //   address: "78 Educational Lane, London, UK EC2A 4NE",
     //   phone: "+44 20 7946 0958",
-    //   email: "london@cogniedify.com",
+    //   email: "london@CogniEdufy.com",
     //   hours: "Monday - Friday: 9:00 AM - 5:30 PM"
     // }
   ];
@@ -327,7 +327,7 @@ const Contact: React.FC = () => {
     },
     {
       question: "How can I apply for a job at CogniEdufy?",
-      answer: "We're always looking for talented individuals to join our team! For job inquiries, please visit our Careers page or email your resume and cover letter to careers@cogniedify.com with the position you're interested in."
+      answer: "We're always looking for talented individuals to join our team! For job inquiries, please visit our Careers page or email your resume and cover letter to careers@CogniEdufy.com with the position you're interested in."
     }
   ];
   
@@ -520,7 +520,7 @@ const Contact: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link
-                to="/register"
+                to="/auth/register"
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-primary-600 bg-white hover:bg-gray-50"
               >
                 Start Learning

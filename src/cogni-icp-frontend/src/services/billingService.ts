@@ -1,4 +1,4 @@
-import canisterService from './canisterService';
+import api from '../utils/apiClient';
 
 export interface SubscriptionPlan {
   id: number;
@@ -79,6 +79,7 @@ export interface SubscribeResponse {
   payment_url?: string;
   access_code?: string;
   reference?: string;
+  amount_kobo?: number;
   subscription?: UserSubscription;
 }
 
@@ -87,120 +88,64 @@ class BillingService {
    * Get all available subscription plans
    */
   async getPlans(): Promise<SubscriptionPlan[]> {
-    try {
-      // For now, return mock data
-      return [];
-    } catch (error) {
-      console.error('Error fetching plans:', error);
-      return [];
-    }
+    const response = await api.get('/api/billing/plans');
+    return response.data.plans;
   }
 
   /**
    * Get current user's subscription
    */
   async getSubscription(): Promise<UserSubscription | null> {
-    try {
-      // For now, return mock data
-      return null;
-    } catch (error) {
-      console.error('Error fetching subscription:', error);
-      return null;
-    }
+    const response = await api.get('/api/billing/subscription');
+    return response.data.subscription;
   }
 
   /**
    * Get detailed subscription status
    */
   async getSubscriptionStatus(): Promise<SubscriptionStatus> {
-    try {
-      // For now, return mock data
-      return {
-        subscription: null,
-        usage: {
-          tutors_used: 0,
-          sessions_this_month: 0,
-          storage_used_gb: 0
-        },
-        limits: {
-          tutors: 1,
-          sessions_per_month: 5,
-          storage_gb: 1,
-          analytics: false,
-          priority_support: false
-        },
-        can_upgrade: true
-      };
-    } catch (error) {
-      console.error('Error fetching subscription status:', error);
-      throw error;
-    }
+    const response = await api.get('/api/billing/status');
+    return response.data;
   }
 
   /**
    * Subscribe to a plan
    */
   async subscribe(planId: number, callbackUrl?: string): Promise<SubscribeResponse> {
-    try {
-      // For now, return mock data
-      return {
-        success: true,
-        message: 'Subscription successful',
-        reference: 'mock-reference'
-      };
-    } catch (error) {
-      console.error('Error subscribing:', error);
-      throw error;
-    }
+    const response = await api.post('/api/billing/subscribe', {
+      plan_id: planId,
+      callback_url: callbackUrl || `${window.location.origin}/billing/callback`
+    });
+    return response.data;
   }
 
   /**
    * Upgrade/change subscription plan
    */
   async upgradeSubscription(planId: number, callbackUrl?: string): Promise<SubscribeResponse> {
-    try {
-      // For now, return mock data
-      return {
-        success: true,
-        message: 'Subscription upgraded successfully',
-        reference: 'mock-reference'
-      };
-    } catch (error) {
-      console.error('Error upgrading subscription:', error);
-      throw error;
-    }
+    const response = await api.post('/api/billing/upgrade', {
+      plan_id: planId,
+      callback_url: callbackUrl || `${window.location.origin}/billing/callback`
+    });
+    return response.data;
   }
 
   /**
    * Verify payment after successful transaction
    */
   async verifyPayment(reference: string): Promise<{ success: boolean; subscription?: UserSubscription; message?: string }> {
-    try {
-      // For now, return mock data
-      return {
-        success: true,
-        message: 'Payment verified successfully'
-      };
-    } catch (error) {
-      console.error('Error verifying payment:', error);
-      throw error;
-    }
+    const response = await api.post('/api/billing/verify-payment', {
+      reference
+    });
+    return response.data;
   }
 
   /**
    * Cancel current subscription
    */
   async cancelSubscription(): Promise<{ success: boolean; message?: string }> {
-    try {
-      // For now, return mock data
-      return {
-        success: true,
-        message: 'Subscription cancelled successfully'
-      };
-    } catch (error) {
-      console.error('Error cancelling subscription:', error);
-      throw error;
-    }
+    const response = await api.post('/api/billing/cancel');
+    return response.data;
   }
 
   /**
@@ -215,21 +160,10 @@ class BillingService {
       total: number;
     };
   }> {
-    try {
-      // For now, return mock data
-      return {
-        transactions: [],
-        pagination: {
-          page,
-          pages: 0,
-          per_page: perPage,
-          total: 0
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      throw error;
-    }
+    const response = await api.get('/api/billing/transactions', {
+      params: { page, per_page: perPage }
+    });
+    return response.data;
   }
 
   /**
@@ -241,7 +175,10 @@ class BillingService {
       const freeLimits: Record<string, boolean> = {
         analytics: false,
         priority_support: false,
-        custom_tutors: false
+        custom_tutors: false,
+        team_management: false,
+        api_access: false,
+        unlimited_storage: false
       };
       return freeLimits[feature] ?? false;
     }
@@ -254,30 +191,34 @@ class BillingService {
       return value;
     }
     
-    // For numeric features, check if user has access (any positive number means access)
+    // For numeric features, return true if limit is greater than 0
     if (typeof value === 'number') {
       return value > 0;
     }
     
+    // Default to false for unknown features
     return false;
   }
 
   /**
-   * Get feature limit for current subscription
+   * Get usage limit for a feature
    */
   getFeatureLimit(feature: string, subscription: UserSubscription | null): number | boolean {
     if (!subscription || !subscription.is_active) {
       // Free tier limits
-      const freeLimits: Record<string, number | boolean> = {
-        tutors: 1,
-        study_groups: 1,
-        sessions_per_month: 5,
+      const freeLimits = {
+        tutors: 3,
+        study_groups: 2,
+        sessions_per_month: 3,
         storage_gb: 1,
         analytics: false,
         priority_support: false,
-        custom_tutors: false
+        custom_tutors: false,
+        team_management: false,
+        api_access: false,
+        unlimited_storage: false
       };
-      return freeLimits[feature] ?? 0;
+      return freeLimits[feature as keyof typeof freeLimits] ?? 0;
     }
 
     const limits = subscription.plan.limits;
@@ -285,64 +226,175 @@ class BillingService {
   }
 
   /**
-   * Check if user can perform an action based on current usage and subscription
+   * Check if user can perform an action based on limits
    */
   canPerformAction(action: string, currentUsage: number, subscription: UserSubscription | null): boolean {
     const limit = this.getFeatureLimit(action, subscription);
-    
+
     if (typeof limit === 'boolean') {
       return limit;
     }
-    
-    if (typeof limit === 'number') {
-      return currentUsage < limit;
+
+    // For numeric limits, check if current usage is below limit
+    // -1 means unlimited
+    const numericLimit = limit as number;
+    if (numericLimit === -1) {
+      return true; // Unlimited
     }
-    
-    return false;
+
+    return currentUsage < numericLimit;
   }
 
   /**
-   * Format price from kobo to naira
+   * Format price for display
    */
   formatPrice(priceKobo: number): string {
-    const naira = priceKobo / 100;
-    return `₦${naira.toLocaleString()}`;
+    return `₦${(priceKobo / 100).toLocaleString()}`;
   }
 
   /**
-   * Get a specific plan by ID
+   * Get plan by ID
    */
   async getPlan(planId: number): Promise<SubscriptionPlan | null> {
-    try {
-      // For now, return mock data
-      return null;
-    } catch (error) {
-      console.error('Error fetching plan:', error);
-      return null;
-    }
+    const plans = await this.getPlans();
+    return plans.find(plan => plan.id === planId) || null;
   }
 
   /**
-   * Get recommended plan based on usage
+   * Get plan recommendation based on usage
    */
   getRecommendedPlan(plans: SubscriptionPlan[], usage: any): SubscriptionPlan | null {
-    // For now, return the first plan
-    return plans.length > 0 ? plans[0] : null;
+    // Simple recommendation logic
+    if (usage.tutors_used > 3 || usage.sessions_this_month > 10) {
+      return plans.find(plan => plan.name === 'Pro') || null;
+    }
+    
+    return plans.find(plan => plan.name === 'Free') || null;
   }
 
   /**
-   * Initialize Paystack payment
+   * Get Paystack configuration
    */
-  initializePaystackPayment(config: {
-    key: string;
+  async getPaystackConfig(): Promise<{ public_key: string; currency: string }> {
+    const response = await api.get('/api/billing/paystack-config');
+    return response.data;
+  }
+
+  /**
+   * Initialize Paystack payment (client-side)
+   */
+  async initializePaystackPayment(config: {
     email: string;
     amount: number;
     ref: string;
+    access_code?: string;
     onSuccess: (response: any) => void;
     onCancel: () => void;
-  }): void {
-    // For now, just log the action
-    console.log('Initializing Paystack payment:', config);
+  }): Promise<void> {
+    try {
+      // Get Paystack configuration
+      const paystackConfig = await this.getPaystackConfig();
+      
+      // Load Paystack Inline JS if not already loaded
+      if (!window.PaystackPop) {
+        await this.loadPaystackScript();
+      }
+      
+      // Validate required parameters
+      if (!paystackConfig.public_key) {
+        throw new Error('Paystack public key is not configured');
+      }
+      if (!config.email) {
+        throw new Error('Email is required for payment');
+      }
+      // Amount validation only required for client-side initialization (no access_code)
+      if (!config.access_code && (!config.amount || config.amount <= 0)) {
+        throw new Error('Valid amount is required for payment');
+      }
+
+      // Debug: Log the configuration being sent to Paystack
+      const paystackSetupConfig: any = {
+        key: paystackConfig.public_key,
+        email: config.email,
+        ref: config.ref
+      };
+      
+      // Always include amount and currency
+      paystackSetupConfig.amount = config.amount;
+      paystackSetupConfig.currency = 'NGN';
+      
+      // Add access_code if provided (server-initialized transaction)
+      if (config.access_code) {
+        paystackSetupConfig.access_code = config.access_code;
+      }
+      
+      console.log('Paystack setup config:', paystackSetupConfig);
+      
+      // Validate the reference format (should be unique)
+      if (!config.ref || config.ref.length < 10) {
+        throw new Error('Invalid payment reference - must be at least 10 characters');
+      }
+
+      // Initialize Paystack payment; reject on immediate failure to allow fallback
+      await new Promise<void>((resolve, reject) => {
+        const openedAt = Date.now();
+        let succeeded = false;
+        const handler = window.PaystackPop.setup({
+          ...paystackSetupConfig,
+          callback: function(response: any) {
+            console.log('Paystack payment successful:', response);
+            try {
+              if (config.onSuccess) {
+                config.onSuccess(response);
+              }
+            } finally {
+              succeeded = true;
+              resolve();
+            }
+          },
+          onClose: function() {
+            console.log('Paystack inline closed');
+            try {
+              if (config.onCancel) {
+                config.onCancel();
+              }
+            } finally {
+              const elapsedMs = Date.now() - openedAt;
+              // If it closes almost immediately without success, treat as inline failure
+              if (!succeeded && elapsedMs < 3000) {
+                reject(new Error('INLINE_FAILED'));
+              } else {
+                resolve();
+              }
+            }
+          }
+        });
+        
+        handler.openIframe();
+      });
+    } catch (error) {
+      console.error('Error initializing Paystack payment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load Paystack Inline JS script
+   */
+  private loadPaystackScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (document.getElementById('paystack-script')) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'paystack-script';
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.head.appendChild(script);
+    });
   }
 }
 

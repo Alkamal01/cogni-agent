@@ -1,2 +1,10 @@
+export { default as Login } from './Login';
+export { default as Register } from './Register';
 export { default as ProtectedRoute } from './ProtectedRoute';
 export { default as GuestRoute } from './GuestRoute';
+export { default as ConfirmPage } from './ConfirmPage';
+export { default as RegistrationSuccess } from './RegistrationSuccess';
+export { default as ForgotPassword } from './ForgotPassword';
+export { default as ResetPassword } from './ResetPassword';
+export { default as OAuthCallback } from './OAuthCallback';
+export { default as ResendVerification } from './ResendVerification';

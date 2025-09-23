@@ -644,7 +644,7 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
             <div className="mb-4">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <IoSearch className="h-4 w-4 text-gray-400" />
+                  <IoSearch className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 </div>
                 <input
                   type="text"
@@ -863,13 +863,13 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
             </div>
 
             {/* Tab Filters */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-850">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
               <div className="flex space-x-2">
                 <button
                   onClick={() => setActiveTab('pending')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === 'pending'
-                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                      ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -884,7 +884,7 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
                   onClick={() => setActiveTab('sent')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === 'sent'
-                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                      ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -899,7 +899,7 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
                   onClick={() => setActiveTab('connections')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === 'connections'
-                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                      ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -909,7 +909,7 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
                   onClick={() => setActiveTab('discover')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === 'discover'
-                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                      ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-200'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -957,7 +957,7 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
                   onClick={handleCloseConnectionModal}
                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <IoClose className="h-5 w-5 text-gray-500" />
+                  <IoClose className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 </button>
               </div>
               

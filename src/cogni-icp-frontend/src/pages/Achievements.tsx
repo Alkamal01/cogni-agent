@@ -23,7 +23,7 @@ import {
 import { taskService, Task } from '../services/taskService';
 import connectionService from '../services/connectionService';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import blockchainService from '../services/blockchainService';
+
 import { AlertCircle } from 'lucide-react';
 import api from '../utils/apiClient';
 
@@ -111,6 +111,43 @@ const TaskCompletionModal: React.FC<TaskCompletionModalProps> = ({
         participants: allParticipants
       };
 
+      // Debug logging
+      console.log('Task completion attempt:', {
+        taskId: task!.public_id,
+        taskCategory: task!.category,
+        proofData: finalProofData,
+        allParticipants,
+        currentUser: user?.username
+      });
+
+      // Validate required fields for social tasks
+      if (task!.category === 'social') {
+        if (!finalProofData.interaction_type) {
+          toast({ 
+            title: 'Validation Error', 
+            description: 'Please select an interaction type', 
+            variant: 'error' 
+          });
+          return;
+        }
+        if (!finalProofData.duration || finalProofData.duration < 300) {
+          toast({ 
+            title: 'Validation Error', 
+            description: 'Duration must be at least 5 minutes', 
+            variant: 'error' 
+          });
+          return;
+        }
+        if (!finalProofData.participants || finalProofData.participants.length < 2) {
+          toast({ 
+            title: 'Validation Error', 
+            description: 'Must have at least 2 participants', 
+            variant: 'error' 
+          });
+          return;
+        }
+      }
+
       await onComplete(task!.public_id, finalProofData);
       resetForm();
       onClose();
@@ -156,7 +193,7 @@ const TaskCompletionModal: React.FC<TaskCompletionModalProps> = ({
                   value={proofData.study_duration || ''}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProofData({
                     ...proofData,
-                    study_duration: parseInt(e.target.value) * 60 // Convert to seconds
+                    study_duration: (parseInt(e.target.value) || 0) * 60 // Convert to seconds
                   })}
                   placeholder="Enter study duration in minutes"
                 />
@@ -294,7 +331,7 @@ const TaskCompletionModal: React.FC<TaskCompletionModalProps> = ({
                   value={proofData.duration || ''}
                   onChange={(e) => setProofData({
                     ...proofData,
-                    duration: parseInt(e.target.value) * 60 // Convert to seconds
+                    duration: (parseInt(e.target.value) || 0) * 60 // Convert to seconds
                   })}
                   placeholder="Enter interaction duration in minutes"
                 />
@@ -663,7 +700,7 @@ const TaskCompletionModal: React.FC<TaskCompletionModalProps> = ({
                   value={proofData.group_size || ''}
                   onChange={(e) => setProofData({
                     ...proofData,
-                    group_size: parseInt(e.target.value)
+                    group_size: parseInt(e.target.value) || 0
                   })}
                   placeholder="Enter number of participants"
                 />
@@ -951,7 +988,7 @@ const Achievements: React.FC = () => {
     loadTasks();
   }, []);
 
-  // Handle task completion with blockchain integration
+  // Handle task completion
   const handleCompleteTask = async (taskPublicId: string) => {
     // Find the task to show in modal
     const task = tasks.find(t => t.public_id === taskPublicId);
@@ -968,30 +1005,7 @@ const Achievements: React.FC = () => {
       const response = await taskService.completeTask(taskPublicId, proofData);
       
       if (response.success) {
-        // If user has a wallet, also complete on blockchain
-        if (blockchainService.hasWalletAddress()) {
-          try {
-            const blockchainResponse = await blockchainService.syncTaskCompletionToBlockchain(taskPublicId);
-            
-            if (blockchainResponse.success && blockchainResponse.blockchain_transaction) {
-              // Execute the blockchain transaction
-              const txResult = await blockchainService.executeTransaction(blockchainResponse.blockchain_transaction);
-              
-              if (txResult.success) {
-                toast({ title: 'Success', description: `Task completed! ${response.message} Tokens minted on blockchain: ${txResult.transaction_hash}`, variant: 'success' });
-              } else {
-                toast({ title: 'Success', description: `${response.message} (Blockchain transaction pending)`, variant: 'success' });
-              }
-            } else {
-              toast({ title: 'Success', description: `${response.message} (Blockchain integration unavailable)`, variant: 'success' });
-            }
-          } catch (blockchainError) {
-            console.error('Blockchain integration error:', blockchainError);
-            toast({ title: 'Success', description: `${response.message} (Database completion successful)`, variant: 'success' });
-          }
-        } else {
-          toast({ title: 'Success', description: `${response.message} Connect wallet to earn blockchain tokens!`, variant: 'success' });
-        }
+        toast({ title: 'Success', description: response.message, variant: 'success' });
         
         // Reload tasks to update completion status
         const reloadResponse = await taskService.getTasks({ show_completed: true });

@@ -30,7 +30,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const { showToast } = useToast();
   
   // Cache and debouncing refs
-  const lastFetchedUserId = useRef<string | null>(null);
+  const lastFetchedUserId = useRef<number | null>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isFetchingRef = useRef(false);
 
@@ -48,7 +48,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     }
 
     // Skip if we already have data for this user (unless forced)
-    if (!forceRefresh && lastFetchedUserId.current === user.id.toString() && subscription) {
+    if (!forceRefresh && lastFetchedUserId.current === user.id && subscription) {
       setLoading(false);
       return;
     }
@@ -57,7 +57,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     setLoading(true);
 
     try {
-      console.log('Fetching subscription data for user:', user.id.toString());
+      console.log('Fetching subscription data for user:', user.id);
       
       // Fetch subscription data first, then status if needed
       const subscriptionData = await billingService.getSubscription().catch(err => {
@@ -71,7 +71,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       if (!subscriptionData) {
         const defaultFreeSubscription: UserSubscription = {
           id: 0,
-          user_id: parseInt(user.id.toString().slice(0, 8), 16), // Convert Principal to number
+          user_id: user.id,
           plan: {
             id: 1,
             name: 'Free',
@@ -79,7 +79,8 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
             price_formatted: '₦0',
             billing_cycle: 'monthly',
             features: [
-              'Access to 3 AI tutors',
+              '3 AI tutor sessions per month',
+              'Basic personalized learning paths',
               'Join up to 2 study groups',
               'Basic learning analytics',
               '1GB storage',
@@ -88,11 +89,14 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
             limits: {
               tutors: 3,
               study_groups: 2,
-              sessions_per_month: 10,
+              sessions_per_month: 3,
               storage_gb: 1,
               analytics: false,
               priority_support: false,
-              custom_tutors: false
+              custom_tutors: false,
+              team_management: false,
+              api_access: false,
+              unlimited_storage: false
             },
             paystack_plan_code: null,
             is_active: true,
@@ -120,7 +124,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       setSubscriptionStatus(null);
       
       // Update cache
-      lastFetchedUserId.current = user.id.toString();
+      lastFetchedUserId.current = user.id;
     } catch (error) {
       console.error('Error in fetchSubscriptionData:', error);
       // Set default free tier access
@@ -151,6 +155,22 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       }
     };
   }, [fetchSubscriptionData]);
+
+  // Add periodic refresh to check for admin subscription changes
+  useEffect(() => {
+    if (!user) return;
+
+    // Set up interval to refresh subscription data every 2 minutes
+    const refreshInterval = setInterval(() => {
+      console.log('Periodic subscription refresh...');
+      fetchSubscriptionData(true); // Force refresh
+    }, 120000); // 2 minutes
+
+    // Cleanup
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [user, fetchSubscriptionData]);
 
   // Refresh subscription data
   const refreshSubscription = async () => {
@@ -188,6 +208,12 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     }
     
     const numericLimit = limit as number;
+
+    // Handle unlimited limits (-1)
+    if (numericLimit === -1) {
+      return { canPerform: true };
+    }
+
     if (currentUsage >= numericLimit) {
       const featureDisplayName = feature.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
       return {

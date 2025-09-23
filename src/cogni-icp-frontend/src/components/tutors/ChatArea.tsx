@@ -6,25 +6,20 @@ import { SendIcon } from './icons';
 import ChatMessage from './ChatMessage';
 import VoiceChat from './VoiceChat';
 import { MarkdownRenderer } from '../shared';
-import { Tutor } from '../../services/tutorService';
-import { TutorMessageChunk } from '../../services/icpChatService';
-import ConversationMemory from '../chat/ConversationMemory';
-import { ConversationContext } from '../../services/conversationMemoryService';
+import { Tutor, TutorMessage } from '../../services/tutorService';
 
 interface ChatAreaProps {
   tutor: Tutor;
-  messages: TutorMessageChunk[];
+  messages: TutorMessage[];
   input: string;
   isSending: boolean;
   tutorStatus: string;
   isConnected: boolean;
-  isConnecting?: boolean;
   isError: boolean;
   isCourseSidebarOpen: boolean;
   sessionStatus: string;
   sessionId?: string;
   isVoiceChatOpen: boolean;
-  conversationContext?: ConversationContext | null;
   onToggleSidebar: () => void;
   onInputChange: (value: string) => void;
   onSendMessage: () => void;
@@ -41,20 +36,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   isSending,
   tutorStatus,
   isConnected,
-  isConnecting = false,
   isError,
   isCourseSidebarOpen,
   sessionStatus,
   sessionId,
   isVoiceChatOpen,
-  conversationContext,
   onToggleSidebar,
   onInputChange,
   onSendMessage,
   onKeyPress,
   onToggleVoiceChat,
   onCloseVoiceChat,
-  user,
+  user
 }) => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -78,72 +71,55 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Chat with {tutor.name}</h2>
           </div>
           
-          {/* Learning Feature Buttons */}
-          <div className="flex space-x-2">
-            {/* Voice Chat Toggle Button */}
-            {sessionStatus === 'active' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onToggleVoiceChat}
-                className="text-primary-600 border-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:border-primary-400 dark:hover:bg-primary-900/20"
+          {/* Voice Chat Toggle Button */}
+          {sessionStatus === 'active' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleVoiceChat}
+              className="text-primary-600 border-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:border-primary-400 dark:hover:bg-primary-900/20 fixed md:static bottom-20 right-4 md:bottom-auto md:right-auto z-[210] md:z-auto shadow md:shadow-none"
+            >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="mr-2"
               >
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                  className="mr-2"
-                >
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                  <line x1="12" y1="19" x2="12" y2="23"></line>
-                  <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-                Voice Chat
-              </Button>
-            )}
-
-          </div>
-          
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              Voice Chat
+            </Button>
+          )}
         </div>
         
         {/* Overlay for mobile when course sidebar is open */}
         {isCourseSidebarOpen && (
           <div 
-            className="fixed inset-0 z-30 bg-black opacity-50 lg:hidden"
+            className="fixed inset-0 z-[180] bg-black opacity-50 lg:hidden"
             onClick={onToggleSidebar}
           ></div>
         )}
         
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
-          {isConnecting && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-blue-700 dark:text-blue-400 text-sm flex items-center">
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Connecting to chat service...
-            </div>
-          )}
-          
-          {!isConnected && isError && !isConnecting && (
+          {!isConnected && isError && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-yellow-700 dark:text-yellow-400 text-sm flex items-center">
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Attempting to reconnect...
             </div>
           )}
           
-          {/* Conversation Memory */}
-          {conversationContext && (
-            <ConversationMemory context={conversationContext} />
-          )}
-
           {messages.map((message, index) => (
-            <ChatMessage key={index} author={message.sender} user={user} tutor={tutor}>
+            <ChatMessage key={index} author={message.sender} user={user} tutor={tutor} hideAvatar={index > 0 && messages[index - 1].sender === message.sender}>
               <MarkdownRenderer content={message.content} />
             </ChatMessage>
           ))}
