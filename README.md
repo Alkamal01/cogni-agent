@@ -1,52 +1,48 @@
-# CogniEdufy: AI-Powered Learning Platform on Internet Computer
+# CogniEdufy: Next-Generation Agentic AI Learning Platform
 
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 [![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
-[![Internet Computer](https://img.shields.io/badge/Internet%20Computer-DFX-blue.svg)](https://internetcomputer.org/)
+[![AI](https://img.shields.io/badge/AI-Agentic-purple.svg)]()
 
 ## 🎓 Overview
 
-CogniEdufy is a revolutionary AI-powered educational platform built on the Internet Computer blockchain. It combines **Agentic AI** for super personalization, collaborative learning, and blockchain technology to create adaptive learning experiences that evolve with each student's unique needs and learning patterns.
+CogniEdufy is a revolutionary educational platform powered by **Agentic AI**. It moves beyond static learning management systems by employing autonomous AI agents that act as personalized tutors. These agents adapt in real-time to collaborative learning environments and individual student behaviors, creating a dynamic curriculum that evolves with every interaction.
 
 ### 🌟 Key Features
 
-- **🤖 Agentic AI Tutors**: Super personalized AI tutors that learn and adapt to your unique learning patterns
-- **🎧 Multi-Modal Learning**: Chat, Audio, and Video (in progress) learning methods
-- **👥 Study Groups**: Collaborative learning with real-time group sessions
-- **📚 Learning Paths**: Structured educational journeys with progress tracking
-- **🏆 Gamification**: Achievement system with rewards and progress milestones
-- **🔗 Social Learning**: Connect with peers, share resources, and learn together
-- **💳 Blockchain Integration**: Sui blockchain integration for secure transactions
-- **📊 Analytics**: Detailed learning analytics and progress insights
-- **🎨 Modern UI**: Beautiful, responsive interface with dark/light themes
+- **🤖 Agentic AI Tutors**: Autonomous AI agents that analyze learning patterns to provide hyper-personalized guidance and adaptive curriculum adjustments.
+- **🎧 Multi-Modal Learning**: Seamless switching between text, interactive audio, and video (in progress) to match user learning styles.
+- **🧠 Adaptive Knowledge Paths**: AI-driven curriculum that restructures itself based on student performance and engagement metrics.
+- **👥 Intelligent Study Groups**: AI-moderated collaborative sessions that group students by compatible learning paces and complementary skill sets.
+- **🏆 Smart Gamification**: Dynamic achievement system where milestones are personalized to encourage consistent progress.
+- **📊 Predictive Analytics**: Deep insights into learning behaviors, predicting potential roadblocks before they occur.
+- **🎨 Modern UI**: Beautiful, responsive interface with dark/light themes designed for cognitive ease.
 
 ## 🏗️ Architecture
 
 ![CogniEdufy Architecture](Architechture.png)
 
-### Backend (Rust Canister)
-- **Language**: Rust with Internet Computer SDK
-- **Storage**: Stable memory structures for persistent data
-- **Authentication**: Internet Identity + Traditional email/password login
-- **AI Integration**: Agentic AI with LLM-powered tutoring system
-- **Blockchain**: Sui integration for payments and credentials
+### Backend (High-Performance Rust)
+- **Core Logic**: Rust-based high-concurrency backend.
+- **AI Engine**: Agentic AI system integrated with LLMs for context-aware tutoring.
+- **Data Layer**: Optimized storage for complex user states and learning history.
+- **Authentication**: Secure, multi-method authentication system.
 
 ### Frontend (React + TypeScript)
-- **Framework**: React 18 with TypeScript
-- **Styling**: Tailwind CSS with custom components
-- **State Management**: React Context + TanStack Query
-- **Routing**: React Router v6
-- **Animations**: Framer Motion + GSAP
-- **Charts**: Chart.js + Recharts for analytics
+- **Framework**: React 18 with TypeScript.
+- **Styling**: Tailwind CSS with custom components.
+- **State Management**: React Context + TanStack Query.
+- **Routing**: React Router v6.
+- **Animations**: Framer Motion + GSAP.
+- **Visualization**: Chart.js + Recharts for learning analytics.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v16 or higher)
-- [DFX](https://internetcomputer.org/docs/current/developer-docs/setup/install/) (Internet Computer SDK)
-- [Rust](https://www.rust-lang.org/tools/install) (for backend development)
+- [Rust](https://www.rust-lang.org/tools/install) (for backend services)
 
 ### Installation
 
@@ -120,112 +116,34 @@ cogni-edufy/
 └── package.json                    # Root package.json
 ```
 
-## 🎯 Core Features
+## 🎯 Core AI Capabilities
 
 ### Agentic AI-Powered Tutoring
-- **Super Personalization**: Agentic AI that learns and adapts to your unique learning patterns
-- **Multi-Modal Learning**: Chat, Audio, and Video (in progress) learning methods
-- **Real-time Chat**: Interactive conversations with AI tutors
-- **Knowledge Base**: Upload custom materials for specialized tutoring
-- **Progress Tracking**: Monitor learning progress and achievements
+- **Context Retention**: Agents remember previous sessions to build long-term learning strategies.
+- **Socratic Method**: The AI is programmed to ask guiding questions rather than just providing answers, fostering critical thinking.
+- **Real-time Adaptation**: Content difficulty adjusts instantly based on user response accuracy and latency.
+- **Multi-Modal Interaction**: Users can speak to the AI and receive verbal responses, or switch to text for note-taking.
 
-### Collaborative Learning
-- **Study Groups**: Create and join study groups
-- **Real-time Collaboration**: Live group sessions with shared resources
-- **Discussion Forums**: Engage in topic-based discussions
-- **Resource Sharing**: Share study materials and notes
-- **Polls & Surveys**: Interactive group decision-making
-
-### Learning Management
-- **Learning Paths**: Structured educational journeys
-- **Progress Analytics**: Detailed insights into learning patterns
-- **Achievement System**: Gamified learning with badges and rewards
-- **Goal Setting**: Set and track learning objectives
-
-### Social Features
-- **User Connections**: Connect with other learners
-- **Profile Management**: Customizable user profiles
-- **Activity Feed**: Track learning activities and achievements
-- **Recommendations**: AI-powered study partner suggestions
+### Intelligent Collaboration
+- **Smart Grouping**: Algorithms match learners with peers who have complementary knowledge gaps.
+- **AI Moderation**: Automated agents facilitate group discussions to keep study sessions focused and productive.
+- **Resource Synthesis**: The AI can summarize group discussions and generate shared study notes automatically.
 
 ## 🔧 Development
 
 ### Backend Development
+The backend is built with Rust for safety and performance, specifically designed to handle the heavy computational load of real-time AI agents.
 
-The backend is built using Rust and the Internet Computer SDK. Key components include:
-
-- **Data Models**: Comprehensive data structures for all application features
-- **State Management**: Efficient memory management using stable structures
-- **API Endpoints**: Candid interface for frontend communication
-- **Agentic AI Integration**: Advanced LLM-powered tutoring with learning adaptation
-- **Multi-Modal Support**: Chat, audio, and video processing capabilities
+- **AI Pipeline**: Modular design allowing for easy swapping of LLM providers or internal models.
+- **State Management**: Robust handling of concurrent user sessions and persistent agent memory.
 
 ### Frontend Development
+The frontend focuses on a distraction-free learning environment:
 
-The frontend is a modern React application with TypeScript:
-
-- **Component Architecture**: Modular, reusable components
-- **State Management**: Context API for global state
-- **Routing**: Client-side routing with React Router
-- **Styling**: Tailwind CSS with custom design system
-
-### Available Scripts
-
-```bash
-# Development
-npm start                    # Start development server
-npm run build               # Build for production
-npm test                    # Run tests
-
-# DFX Commands
-dfx start --background      # Start local replica
-dfx deploy                  # Deploy canisters
-dfx generate                # Generate Candid interfaces
-```
-
-## 🔐 Authentication
-
-CogniEdufy offers multiple authentication options for maximum accessibility:
-
-- **Internet Identity**: Native IC blockchain-based authentication
-- **Traditional Login**: Email/password authentication for familiar user experience
-- **Principal-based**: Secure user identification on the blockchain
-- **Multi-device**: Access from multiple devices securely
-- **Flexible Access**: Choose your preferred authentication method
-
-## 💰 Billing & Subscriptions
-
-The platform includes a comprehensive billing system:
-
-- **Subscription Plans**: Multiple tiers for different user needs
-- **Payment Processing**: Secure payment handling
-- **Usage Tracking**: Monitor feature usage and limits
-- **Billing Analytics**: Detailed financial reporting
-
-## 🎨 UI/UX Features
-
-- **Responsive Design**: Works seamlessly across all devices
-- **Dark/Light Themes**: User preference support
-- **Smooth Animations**: Engaging user experience
-- **Accessibility**: WCAG compliant design
-- **Modern Interface**: Clean, intuitive design
-
-## 🚀 Deployment
-
-### Local Development
-```bash
-dfx start --background
-dfx deploy
-npm start
-```
-
-### Production Deployment
-```bash
-dfx deploy --network ic
-```
+- **Component Architecture**: Modular design for rapid feature iteration.
+- **Performance**: Optimized rendering for real-time chat and data visualization.
 
 ## 🤝 Contributing
-
 We welcome contributions! Please see our contributing guidelines:
 
 1. Fork the repository
@@ -235,23 +153,21 @@ We welcome contributions! Please see our contributing guidelines:
 5. Submit a pull request
 
 ## 📄 License
-
 This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
-
-- [Internet Computer Documentation](https://internetcomputer.org/docs)
-- [DFX Documentation](https://internetcomputer.org/docs/current/developer-docs/setup/install/)
 - [Rust Documentation](https://doc.rust-lang.org/)
 - [React Documentation](https://reactjs.org/docs/)
+- [OpenAI API Documentation](https://platform.openai.com/docs) (or relevant AI provider)
 
 ## 📞 Support
-
 For support and questions:
+
 - Create an issue in the repository
 - Join our community discussions
 - Contact the development team
 
 ---
 
+**Empowering Education with Agentic AI**
 **Built with ❤️ on the Internet Computer**
